@@ -113,7 +113,7 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
-    if (!window.currentUserIsAdmin) {
+    if (!isEmailAllowed(user.email)) {
       document.getElementById('loading').classList.add('d-none');
       document.getElementById('admin-guard').classList.remove('d-none');
       return;
