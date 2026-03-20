@@ -13,17 +13,17 @@
 <!-- Firebase config injected at build time from hugo.toml / HUGO_PARAMS_* env vars -->
 <script>
   window.FIREBASE_CONFIG = {
-    apiKey:            "{{ .Site.Params.firebase_api_key }}",
-    authDomain:        "{{ .Site.Params.firebase_auth_domain }}",
-    projectId:         "{{ .Site.Params.firebase_project_id }}",
-    storageBucket:     "{{ .Site.Params.firebase_storage_bucket }}",
-    messagingSenderId: "{{ .Site.Params.firebase_messaging_sender_id }}",
-    appId:             "{{ .Site.Params.firebase_app_id }}",
+    apiKey:            "{{ .Site.Params.firebase.api.key }}",
+    authDomain:        "{{ .Site.Params.firebase.auth.domain }}",
+    projectId:         "{{ .Site.Params.firebase.project.id }}",
+    storageBucket:     "{{ .Site.Params.firebase.storage.bucket }}",
+    messagingSenderId: "{{ .Site.Params.firebase.messaging.sender.id }}",
+    appId:             "{{ .Site.Params.firebase.app.id }}",
   };
-  window.ALLOWED_EMAILS = {{ .Site.Params.allowed_emails | strings.Split "," | jsonify }};
+  window.ALLOWED_EMAILS = {{ split .Site.Params.allowed.emails "," | jsonify }};
   window.DATA_CONFIG = {
-    gcsBucket:    "{{ .Site.Params.gcs_data_bucket }}",
-    driveFolderId: "{{ .Site.Params.drive_folder_id }}",
-    driveApiKey:  "{{ .Site.Params.drive_api_key }}",
+    gcsBucket:    "{{ .Site.Params.gcs.data.bucket }}",
+    driveFolderId: "{{ .Site.Params.drive.folder.id }}",
+    driveApiKey:  "{{ .Site.Params.drive.api.key }}",
   };
 </script>

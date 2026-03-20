@@ -27,7 +27,7 @@ jobs:
           extended: true
 
       - name: Build
-        run: hugo --minify
+        run: hugo --minify --baseURL "https://futuregadgetcollections.github.io/collection-showcase-frontend/"
         env:
           # Secrets (sensitive keys)
           HUGO_PARAMS_FIREBASE_API_KEY: ${{ secrets.HUGO_PARAMS_FIREBASE_API_KEY }}

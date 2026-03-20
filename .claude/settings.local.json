@@ -8,7 +8,30 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(xargs ls:*)",
-      "Bash(gcloud storage:*)"
+      "Bash(gcloud storage:*)",
+      "Bash(gh run:*)",
+      "WebFetch(domain:futuregadgetcollections.github.io)",
+      "Bash(set -a)",
+      "Bash(source .env)",
+      "Bash(set +a)",
+      "Bash(echo \"API_KEY=$HUGO_PARAMS_FIREBASE_API_KEY\")",
+      "Bash(env)",
+      "Bash(curl -s http://localhost:1313/collection-showcase-frontend/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:1313/products/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:1313/collection-showcase-frontend/products/\")",
+      "Bash(pkill -f \"hugo server\")",
+      "Bash(curl -s \"http://localhost:1313/\")",
+      "Bash(curl -sv \"http://localhost:1313/\")",
+      "Read(//c/Users/AppData/Local/Temp/claude/C--Users-nguye-IdeaProjects-FutureGadgetLabs-collection-showcase-frontend/361cf01b-bb8d-4695-adb5-5fdaec88f4ee/tasks/**)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:1313/browse/\")",
+      "Bash(taskkill //F //IM hugo.exe)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:1313/\")",
+      "Bash(cd:*)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(python3 -c \":*)",
+      "Bash(done)"
     ]
   }
 }

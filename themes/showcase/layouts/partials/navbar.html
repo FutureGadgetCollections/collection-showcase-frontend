@@ -1,6 +1,6 @@
 <nav class="navbar navbar-expand-md navbar-dark bg-dark sticky-top shadow-sm">
   <div class="container">
-    <a class="navbar-brand fw-semibold" href="{{ "/" | relURL }}">
+    <a class="navbar-brand fw-semibold" href="{{ "" | relURL }}">
       <i class="bi bi-collection me-2"></i>{{ .Site.Title }}
     </a>
 
@@ -13,7 +13,7 @@
       <ul class="navbar-nav me-auto">
         <li class="nav-item">
           <a class="nav-link{{ if eq .RelPermalink "/browse/" }} active{{ end }}"
-             href="{{ "/browse" | relURL }}">
+             href="{{ "browse/" | relURL }}">
             <i class="bi bi-eye me-1"></i>Browse
           </a>
         </li>
@@ -23,25 +23,25 @@
       <ul class="navbar-nav me-auto" id="nav-links" style="display:none!important">
         <li class="nav-item">
           <a class="nav-link{{ if eq .RelPermalink "/products/" }} active{{ end }}"
-             href="{{ "/products" | relURL }}">
+             href="{{ "products/" | relURL }}">
             <i class="bi bi-box me-1"></i>Products
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link{{ if eq .RelPermalink "/transactions/" }} active{{ end }}"
-             href="{{ "/transactions" | relURL }}">
+             href="{{ "transactions/" | relURL }}">
             <i class="bi bi-arrow-left-right me-1"></i>Transactions
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link{{ if eq .RelPermalink "/collection/" }} active{{ end }}"
-             href="{{ "/collection" | relURL }}">
+             href="{{ "collection/" | relURL }}">
             <i class="bi bi-grid me-1"></i>Collection
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link{{ if eq .RelPermalink "/price-history/" }} active{{ end }}"
-             href="{{ "/price-history" | relURL }}">
+             href="{{ "price-history/" | relURL }}">
             <i class="bi bi-graph-up me-1"></i>Price History
           </a>
         </li>
@@ -52,7 +52,7 @@
         <button class="btn btn-sm btn-outline-light d-none" id="btn-logout" onclick="authSignOut()">
           Sign out
         </button>
-        <a class="btn btn-sm btn-primary d-none" id="btn-login" href="{{ "/" | relURL }}">
+        <a class="btn btn-sm btn-primary d-none" id="btn-login" href="{{ "" | relURL }}">
           Sign in
         </a>
       </div>

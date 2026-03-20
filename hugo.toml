@@ -1,4 +1,4 @@
-baseURL = "https://futuregadgetcollections.github.io/collection-showcase-frontend/"
+baseURL = "/"
 languageCode = "en-us"
 title = "Collection Showcase"
 theme = "showcase"
@@ -6,21 +6,32 @@ theme = "showcase"
 [params]
   description = "FutureGadgetCollections — browse and manage your TCG collection"
   backendURL = "http://localhost:8080"
-  # Firebase config — override via HUGO_PARAMS_FIREBASE_* env vars (see .env.example)
-  firebase_api_key            = ""
-  firebase_auth_domain        = ""
-  firebase_project_id         = ""
-  firebase_storage_bucket     = ""
-  firebase_messaging_sender_id = ""
-  firebase_app_id             = ""
 
-  # Comma-separated list of emails allowed to sign in (mirrors backend ALLOWED_EMAILS)
-  allowed_emails   = ""
+  # Firebase config — nested to match HUGO_PARAMS_FIREBASE_* env var mapping
+  [params.firebase.api]
+    key = ""
+  [params.firebase.auth]
+    domain = ""
+  [params.firebase.project]
+    id = ""
+  [params.firebase.storage]
+    bucket = ""
+  [params.firebase.messaging.sender]
+    id = ""
+  [params.firebase.app]
+    id = ""
 
-  # Static data sources (Drive-first, GCS fallback)
-  gcs_data_bucket  = "collection-showcase-data"
-  drive_folder_id  = "19lv9yCm4zWQHxr0K3DI7jBW3fp18b0li"
-  drive_api_key    = ""  # Google API key with Drive API enabled (can reuse Firebase key if Drive API is on)
+  # Allowed emails — maps to HUGO_PARAMS_ALLOWED_EMAILS -> allowed.emails
+  [params.allowed]
+    emails = ""
+
+  # Static data sources — maps to HUGO_PARAMS_GCS_DATA_BUCKET -> gcs.data.bucket etc.
+  [params.gcs.data]
+    bucket = "collection-showcase-data"
+  [params.drive.folder]
+    id = "19lv9yCm4zWQHxr0K3DI7jBW3fp18b0li"
+  [params.drive.api]
+    key = ""
 
 [markup]
   [markup.goldmark]

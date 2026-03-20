@@ -30,9 +30,14 @@
           <p class="text-success small mb-3">
             <i class="bi bi-check-circle me-1"></i>Signed in as <strong id="home-user-email"></strong>
           </p>
-          <a href="{{ "/collection" | relURL }}" class="btn btn-primary w-100">
-            <i class="bi bi-grid me-1"></i>Go to Collection
-          </a>
+          <div class="d-grid gap-2">
+            <a href="{{ "browse/" | relURL }}" class="btn btn-primary">
+              <i class="bi bi-eye me-1"></i>View Collection
+            </a>
+            <a href="{{ "products/" | relURL }}" class="btn btn-outline-secondary">
+              <i class="bi bi-pencil-square me-1"></i>Manage Entries
+            </a>
+          </div>
         </div>
       </div>
     </div>
