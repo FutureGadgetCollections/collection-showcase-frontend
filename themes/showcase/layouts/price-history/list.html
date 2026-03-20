@@ -1,0 +1,242 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Price History</h2>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg me-1"></i>Add Snapshot
+  </button>
+</div>
+
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "/" | relURL }}">signed in</a> to view price history.
+</div>
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-inbox fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No price snapshots yet.</p>
+</div>
+
+<div class="card shadow-sm border-0 d-none" id="items-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Product</th>
+            <th>Date</th>
+            <th>Source</th>
+            <th>Market Price</th>
+            <th>Median Price</th>
+            <th>STR</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create Modal (no edit — price history is append-only) -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Add Price Snapshot</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-product">Product <span class="text-danger">*</span></label>
+            <select class="form-select" id="item-product">
+              <option value="">Loading products…</option>
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-medium" for="item-date">Snapshot Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="item-date">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-medium" for="item-source">Source</label>
+            <input type="text" class="form-control" id="item-source" placeholder="e.g. TCGPlayer">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-medium" for="item-market">Market Price</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" class="form-control" id="item-market" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-medium" for="item-median">Median Price</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" class="form-control" id="item-median" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small fw-medium" for="item-str">Sell-Through %</label>
+            <input type="number" class="form-control" id="item-str" min="0" max="100" step="0.1" placeholder="0.0">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small fw-medium" for="item-buyers">Distinct Buyers</label>
+            <input type="number" class="form-control" id="item-buyers" min="0" placeholder="0">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small fw-medium" for="item-listed">Listed Count</label>
+            <input type="number" class="form-control" id="item-listed" min="0" placeholder="0">
+          </div>
+        </div>
+        <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center pt-4">
+        <i class="bi bi-trash3 fs-2 text-danger"></i>
+        <p class="mt-2 mb-1 fw-medium">Delete this snapshot?</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    const [, products] = await Promise.all([loadItems(), api('GET', '/products')]);
+    populateProductSelect(products || []);
+  });
+
+  function populateProductSelect(prods) {
+    document.getElementById('item-product').innerHTML =
+      prods.map(p => `<option value="${p.product_id}">${escHtml(p.name)}</option>`).join('');
+  }
+
+  let productMap = {};
+
+  async function loadItems() {
+    try {
+      const [items, prods] = await Promise.all([
+        api('GET', '/price-history'),
+        api('GET', '/products'),
+      ]);
+      productMap = Object.fromEntries((prods || []).map(p => [p.product_id, p.name]));
+      document.getElementById('loading').classList.add('d-none');
+      if (!items || items.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+      document.getElementById('items-card').classList.remove('d-none');
+      document.getElementById('items-tbody').innerHTML = items.map(h => `
+        <tr>
+          <td class="ps-3 fw-medium">${escHtml(productMap[h.product_id] || h.product_id)}</td>
+          <td class="text-muted">${fmtDate(h.snapshot_date)}</td>
+          <td class="text-muted">${escHtml(h.source || '—')}</td>
+          <td>${fmt$(h.market_price)}</td>
+          <td>${fmt$(h.median_price)}</td>
+          <td>${h.sell_through_rate != null ? (h.sell_through_rate * 100).toFixed(1) + '%' : '—'}</td>
+          <td class="text-end pe-3">
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${h.record_id}')">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      showToast('Failed to load price history: ' + e.message, 'danger');
+    }
+  }
+
+  function openCreateModal() {
+    document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('item-source').value = '';
+    document.getElementById('item-market').value = '';
+    document.getElementById('item-median').value = '';
+    document.getElementById('item-str').value = '';
+    document.getElementById('item-buyers').value = '';
+    document.getElementById('item-listed').value = '';
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  async function saveItem() {
+    const product = document.getElementById('item-product').value;
+    const date    = document.getElementById('item-date').value;
+    const errEl   = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    if (!product || !date) {
+      errEl.textContent = 'Product and date are required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+
+    const btn = document.getElementById('modal-save-btn');
+    btn.disabled = true;
+    try {
+      const body = {
+        product_id:           product,
+        snapshot_date:        date,
+        source:               document.getElementById('item-source').value || null,
+        market_price:         parseFloatOrNull('item-market'),
+        median_price:         parseFloatOrNull('item-median'),
+        sell_through_rate:    parseFloatOrNull('item-str', v => v / 100),
+        distinct_buyer_count: parseIntOrNull('item-buyers'),
+        listed_count:         parseIntOrNull('item-listed'),
+      };
+      await api('POST', '/price-history', body);
+      itemModal.hide();
+      await loadItems();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    } finally { btn.disabled = false; }
+  }
+
+  let pendingDeleteId = null;
+  function openDeleteModal(id) { pendingDeleteId = id; deleteModal.show(); }
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    try {
+      await api('DELETE', `/price-history/${pendingDeleteId}`);
+      deleteModal.hide();
+      await loadItems();
+    } catch (e) { showToast('Delete failed: ' + e.message, 'danger'); }
+  });
+
+  function parseFloatOrNull(id, transform) {
+    const v = parseFloat(document.getElementById(id).value);
+    if (isNaN(v)) return null;
+    return transform ? transform(v) : v;
+  }
+  function parseIntOrNull(id) {
+    const v = parseInt(document.getElementById(id).value);
+    return isNaN(v) ? null : v;
+  }
+  function fmt$(n) { return n != null ? '$' + Number(n).toFixed(2) : '—'; }
+  function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '—'; }
+  function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+</script>
+{{ end }}

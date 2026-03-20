@@ -1,0 +1,45 @@
+/* ─── Typography ─────────────────────────────────────────── */
+body {
+  font-size: 0.9375rem;
+}
+
+/* ─── Navbar ─────────────────────────────────────────────── */
+.navbar-brand {
+  letter-spacing: 0.02em;
+}
+
+/* ─── Cards ──────────────────────────────────────────────── */
+.card {
+  border-radius: 0.75rem;
+}
+
+/* ─── Table ──────────────────────────────────────────────── */
+.table thead th {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  border-bottom-width: 1px;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Buttons ────────────────────────────────────────────── */
+.btn {
+  border-radius: 0.5rem;
+}
+
+/* ─── Modals ─────────────────────────────────────────────── */
+.modal-content {
+  border-radius: 0.75rem;
+}
+
+/* ─── Spinner page center ────────────────────────────────── */
+#loading {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

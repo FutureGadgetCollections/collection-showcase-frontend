@@ -1,0 +1,240 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Transactions</h2>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg me-1"></i>Log Transaction
+  </button>
+</div>
+
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "/" | relURL }}">signed in</a> to view transactions.
+</div>
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-inbox fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No transactions yet.</p>
+</div>
+
+<div class="card shadow-sm border-0 d-none" id="items-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Product</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="modal-title">Log Transaction</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="item-id">
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-product">Product <span class="text-danger">*</span></label>
+          <select class="form-select" id="item-product">
+            <option value="">Loading products…</option>
+          </select>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-date">Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="item-date">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-type">Type <span class="text-danger">*</span></label>
+            <select class="form-select" id="item-type">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-qty">Quantity <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="item-qty" min="1" placeholder="1">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-price">Price <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" class="form-control" id="item-price" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+        <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center pt-4">
+        <i class="bi bi-trash3 fs-2 text-danger"></i>
+        <p class="mt-2 mb-1 fw-medium">Delete this transaction?</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+  let products = [];
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    [products] = await Promise.all([api('GET', '/products'), loadItems()]);
+    populateProductSelect(products);
+  });
+
+  function populateProductSelect(prods) {
+    const sel = document.getElementById('item-product');
+    sel.innerHTML = prods.map(p =>
+      `<option value="${p.product_id}">${escHtml(p.name)}</option>`
+    ).join('');
+  }
+
+  function productName(id) {
+    const p = products.find(p => p.product_id === id);
+    return p ? p.name : id;
+  }
+
+  async function loadItems() {
+    try {
+      const items = await api('GET', '/transactions');
+      document.getElementById('loading').classList.add('d-none');
+      if (!items || items.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+      renderItems(items);
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      showToast('Failed to load transactions: ' + e.message, 'danger');
+    }
+  }
+
+  function renderItems(items) {
+    document.getElementById('items-card').classList.remove('d-none');
+    document.getElementById('empty-state').classList.add('d-none');
+    document.getElementById('items-tbody').innerHTML = items.map(t => `
+      <tr>
+        <td class="ps-3 fw-medium">${escHtml(productName(t.product_id))}</td>
+        <td class="text-muted">${fmtDate(t.transaction_date)}</td>
+        <td>
+          <span class="badge ${t.transaction_type === 'buy' ? 'text-bg-success' : 'text-bg-warning'}">
+            ${escHtml(t.transaction_type)}
+          </span>
+        </td>
+        <td>${t.quantity}</td>
+        <td>$${Number(t.price).toFixed(2)}</td>
+        <td class="text-end pe-3">
+          <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(t)})'>
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${t.transaction_id}')">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Log Transaction';
+    document.getElementById('item-id').value = '';
+    document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('item-type').value = 'buy';
+    document.getElementById('item-qty').value = '';
+    document.getElementById('item-price').value = '';
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  function openEditModal(t) {
+    document.getElementById('modal-title').textContent = 'Edit Transaction';
+    document.getElementById('item-id').value = t.transaction_id;
+    document.getElementById('item-product').value = t.product_id;
+    document.getElementById('item-date').value = t.transaction_date ? t.transaction_date.split('T')[0] : '';
+    document.getElementById('item-type').value = t.transaction_type;
+    document.getElementById('item-qty').value = t.quantity;
+    document.getElementById('item-price').value = t.price;
+    document.getElementById('modal-error').classList.add('d-none');
+    itemModal.show();
+  }
+
+  async function saveItem() {
+    const id      = document.getElementById('item-id').value;
+    const product = document.getElementById('item-product').value;
+    const date    = document.getElementById('item-date').value;
+    const type    = document.getElementById('item-type').value;
+    const qty     = parseInt(document.getElementById('item-qty').value);
+    const price   = parseFloat(document.getElementById('item-price').value);
+    const errEl   = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    if (!product || !date || isNaN(qty) || isNaN(price)) {
+      errEl.textContent = 'All fields are required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+
+    const btn = document.getElementById('modal-save-btn');
+    btn.disabled = true;
+    try {
+      const body = { product_id: product, transaction_date: date, transaction_type: type, quantity: qty, price };
+      if (id) { await api('PUT',  `/transactions/${id}`, body); }
+      else    { await api('POST', '/transactions', body); }
+      itemModal.hide();
+      await loadItems();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    } finally { btn.disabled = false; }
+  }
+
+  let pendingDeleteId = null;
+  function openDeleteModal(id) { pendingDeleteId = id; deleteModal.show(); }
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    try {
+      await api('DELETE', `/transactions/${pendingDeleteId}`);
+      deleteModal.hide();
+      await loadItems();
+    } catch (e) { showToast('Delete failed: ' + e.message, 'danger'); }
+  });
+
+  function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+  function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '—'; }
+</script>
+{{ end }}

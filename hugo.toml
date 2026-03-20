@@ -1,0 +1,20 @@
+baseURL = "https://futuregadgetcollections.github.io/collection-showcase-frontend/"
+languageCode = "en-us"
+title = "Collection Showcase"
+theme = "showcase"
+
+[params]
+  description = "FutureGadgetCollections — browse and manage your TCG collection"
+  backendURL = "http://localhost:8080"
+  # Firebase config — override via HUGO_PARAMS_FIREBASE_* env vars (see .env.example)
+  firebase_api_key            = ""
+  firebase_auth_domain        = ""
+  firebase_project_id         = ""
+  firebase_storage_bucket     = ""
+  firebase_messaging_sender_id = ""
+  firebase_app_id             = ""
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true

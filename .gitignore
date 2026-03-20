@@ -27,6 +27,21 @@ go.work.sum
 # env file
 .env
 
+# Hugo build output
+public/
+resources/_gen/
+.hugo_build.lock
+
+# Firebase / secrets
+firebase-config.js
+serviceAccountKey.json
+
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

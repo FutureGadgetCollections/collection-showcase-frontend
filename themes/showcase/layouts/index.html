@@ -1,0 +1,77 @@
+{{ define "main" }}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5 col-lg-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="text-center mb-4">
+          <i class="bi bi-collection fs-1 text-primary"></i>
+          <h1 class="h4 mt-2 mb-1">{{ .Site.Title }}</h1>
+          <p class="text-muted small">{{ .Site.Params.description }}</p>
+        </div>
+
+        <!-- Sign-in form -->
+        <div id="auth-section">
+          <div class="mb-3">
+            <label class="form-label small fw-medium" for="email">Email</label>
+            <input type="email" class="form-control" id="email" placeholder="you@example.com" autocomplete="email">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-medium" for="password">Password</label>
+            <input type="password" class="form-control" id="password" placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <div id="auth-error" class="alert alert-danger py-2 small d-none"></div>
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary" onclick="signIn()">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Sign in
+            </button>
+          </div>
+        </div>
+
+        <!-- Signed-in state -->
+        <div id="signed-in-section" class="text-center d-none">
+          <p class="text-success small mb-3">
+            <i class="bi bi-check-circle me-1"></i>Signed in as <strong id="home-user-email"></strong>
+          </p>
+          <a href="{{ "/collections" | relURL }}" class="btn btn-primary w-100">
+            <i class="bi bi-grid me-1"></i>Go to Collections
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('auth-section').classList.add('d-none');
+      document.getElementById('signed-in-section').classList.remove('d-none');
+      document.getElementById('home-user-email').textContent = user.email;
+    } else {
+      document.getElementById('auth-section').classList.remove('d-none');
+      document.getElementById('signed-in-section').classList.add('d-none');
+    }
+  });
+
+  async function signIn() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('auth-error');
+    errEl.classList.add('d-none');
+    try {
+      await firebase.auth().signInWithEmailAndPassword(email, password);
+      window.location.href = '{{ "/collections" | relURL }}';
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    }
+  }
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') signIn();
+  });
+</script>
+{{ end }}
