@@ -36,6 +36,13 @@ body {
   border-radius: 0.75rem;
 }
 
+/* ─── Admin-disabled nav links ───────────────────────────── */
+.nav-admin-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 /* ─── Spinner page center ────────────────────────────────── */
 #loading {
   min-height: 200px;

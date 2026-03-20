@@ -29,32 +29,28 @@ function isEmailAllowed(email) {
   return allowed.includes(email.toLowerCase());
 }
 
-// Navbar auth state + whitelist enforcement
-firebase.auth().onAuthStateChanged(async user => {
+// Navbar auth state + admin enforcement
+firebase.auth().onAuthStateChanged(user => {
   const emailEl   = document.getElementById("nav-user-email");
   const logoutBtn = document.getElementById("btn-logout");
   const loginBtn  = document.getElementById("btn-login");
   const navLinks  = document.getElementById("nav-links");
 
   if (user) {
-    if (!isEmailAllowed(user.email)) {
-      await firebase.auth().signOut();
-      // Will re-enter this handler with user=null; show error on home page if present
-      const errEl = document.getElementById('auth-error');
-      if (errEl) {
-        errEl.textContent = user.email + ' is not authorized to access this app.';
-        errEl.classList.remove('d-none');
-      } else {
-        showToast(user.email + ' is not authorized.', 'danger');
-      }
-      return;
-    }
+    const isAdmin = isEmailAllowed(user.email);
+    window.currentUserIsAdmin = isAdmin;
 
     if (emailEl)   emailEl.textContent = user.email;
     if (logoutBtn) logoutBtn.classList.remove("d-none");
     if (loginBtn)  loginBtn.classList.add("d-none");
     if (navLinks)  navLinks.style.removeProperty("display");
+
+    // Gray out admin-only nav links for non-admins
+    document.querySelectorAll('.nav-admin-only').forEach(el => {
+      el.classList.toggle('nav-admin-disabled', !isAdmin);
+    });
   } else {
+    window.currentUserIsAdmin = false;
     if (emailEl)   emailEl.textContent = "";
     if (logoutBtn) logoutBtn.classList.add("d-none");
     if (loginBtn)  loginBtn.classList.remove("d-none");

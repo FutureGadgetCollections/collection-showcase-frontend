@@ -1,13 +1,16 @@
 {{ define "main" }}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-box me-2 text-primary"></i>Products</h2>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+  <button id="btn-add-product" class="btn btn-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
     <i class="bi bi-plus-lg me-1"></i>Add Product
   </button>
 </div>
 
 <div id="auth-guard" class="alert alert-warning d-none">
   <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage products.
+</div>
+<div id="admin-guard" class="alert alert-secondary d-none">
+  <i class="bi bi-shield-lock me-1"></i>You need to be an admin to go here.
 </div>
 <div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
 <div id="empty-state" class="text-center py-5 d-none">
@@ -51,6 +54,26 @@
           <label class="form-label small fw-medium" for="item-game">Game / Category</label>
           <input type="text" class="form-control" id="item-game" placeholder="e.g. Magic: The Gathering">
         </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-subcategory">Subcategory</label>
+          <input type="text" class="form-control" id="item-subcategory" placeholder="e.g. First Edition">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-product-category">Product Category</label>
+          <input type="text" class="form-control" id="item-product-category" placeholder="e.g. Booster Pack">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-tcgplayer-id">TCGPlayer ID</label>
+          <input type="text" class="form-control" id="item-tcgplayer-id" placeholder="e.g. 123456">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-pricecharting-url">Price Charting URL</label>
+          <input type="url" class="form-control" id="item-pricecharting-url" placeholder="https://www.pricecharting.com/...">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-listing-url">Listing URL</label>
+          <input type="url" class="form-control" id="item-listing-url" placeholder="https://...">
+        </div>
         <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
       </div>
       <div class="modal-footer border-0 pt-0">
@@ -90,6 +113,12 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
+    if (!window.currentUserIsAdmin) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('admin-guard').classList.remove('d-none');
+      return;
+    }
+    document.getElementById('btn-add-product').classList.remove('d-none');
     await loadItems();
   });
 
@@ -133,6 +162,11 @@
     document.getElementById('item-id').value = '';
     document.getElementById('item-name').value = '';
     document.getElementById('item-game').value = '';
+    document.getElementById('item-subcategory').value = '';
+    document.getElementById('item-product-category').value = '';
+    document.getElementById('item-tcgplayer-id').value = '';
+    document.getElementById('item-pricecharting-url').value = '';
+    document.getElementById('item-listing-url').value = '';
     document.getElementById('modal-error').classList.add('d-none');
   }
 
@@ -141,6 +175,11 @@
     document.getElementById('item-id').value = item.product_id;
     document.getElementById('item-name').value = item.name;
     document.getElementById('item-game').value = item.game_category || '';
+    document.getElementById('item-subcategory').value = item.subcategory || '';
+    document.getElementById('item-product-category').value = item.product_category || '';
+    document.getElementById('item-tcgplayer-id').value = item.tcgplayer_id || '';
+    document.getElementById('item-pricecharting-url').value = item.pricecharting_url || '';
+    document.getElementById('item-listing-url').value = item.listing_url || '';
     document.getElementById('modal-error').classList.add('d-none');
     itemModal.show();
   }
@@ -156,7 +195,15 @@
     const btn = document.getElementById('modal-save-btn');
     btn.disabled = true;
     try {
-      const body = { name, game_category: game };
+      const body = {
+        name,
+        game_category: game || null,
+        subcategory: document.getElementById('item-subcategory').value.trim() || null,
+        product_category: document.getElementById('item-product-category').value.trim() || null,
+        tcgplayer_id: document.getElementById('item-tcgplayer-id').value.trim() || null,
+        pricecharting_url: document.getElementById('item-pricecharting-url').value.trim() || null,
+        listing_url: document.getElementById('item-listing-url').value.trim() || null,
+      };
       if (id) { await api('PUT',  `/products/${id}`, body); }
       else    { await api('POST', '/products', body); }
       itemModal.hide();

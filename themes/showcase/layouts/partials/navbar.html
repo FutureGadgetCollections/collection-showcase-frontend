@@ -22,26 +22,26 @@
       <!-- Auth-required links -->
       <ul class="navbar-nav me-auto" id="nav-links" style="display:none!important">
         <li class="nav-item">
-          <a class="nav-link{{ if eq .RelPermalink "/products/" }} active{{ end }}"
-             href="{{ "products/" | relURL }}">
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/products/" }} active{{ end }}"
+             href="{{ "products/" | relURL }}" title="Admin access required">
             <i class="bi bi-box me-1"></i>Products
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link{{ if eq .RelPermalink "/transactions/" }} active{{ end }}"
-             href="{{ "transactions/" | relURL }}">
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/transactions/" }} active{{ end }}"
+             href="{{ "transactions/" | relURL }}" title="Admin access required">
             <i class="bi bi-arrow-left-right me-1"></i>Transactions
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link{{ if eq .RelPermalink "/collection/" }} active{{ end }}"
-             href="{{ "collection/" | relURL }}">
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/collection/" }} active{{ end }}"
+             href="{{ "collection/" | relURL }}" title="Admin access required">
             <i class="bi bi-grid me-1"></i>Collection
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link{{ if eq .RelPermalink "/price-history/" }} active{{ end }}"
-             href="{{ "price-history/" | relURL }}">
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/price-history/" }} active{{ end }}"
+             href="{{ "price-history/" | relURL }}" title="Admin access required">
             <i class="bi bi-graph-up me-1"></i>Price History
           </a>
         </li>
