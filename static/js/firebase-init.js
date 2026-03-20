@@ -21,10 +21,13 @@ async function signInWithGoogle() {
 }
 
 // Returns true if the email is in the allowed list (or if no list is configured).
+// window.ALLOWED_EMAILS may arrive as a JSON array string (Hugo split|jsonify quirk) or a real array.
 function isEmailAllowed(email) {
-  const allowed = (window.ALLOWED_EMAILS || [])
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
+  let raw = window.ALLOWED_EMAILS || [];
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch (_) { raw = raw.split(','); }
+  }
+  const allowed = raw.map(e => e.trim().toLowerCase()).filter(Boolean);
   if (allowed.length === 0) return true; // no restriction configured
   return allowed.includes(email.toLowerCase());
 }
