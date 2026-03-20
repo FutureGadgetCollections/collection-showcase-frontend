@@ -6,7 +6,9 @@
       "Bash(hugo new:*)",
       "Bash(hugo:*)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs ls:*)",
+      "Bash(gcloud storage:*)"
     ]
   }
 }

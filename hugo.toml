@@ -14,6 +14,14 @@ theme = "showcase"
   firebase_messaging_sender_id = ""
   firebase_app_id             = ""
 
+  # Comma-separated list of emails allowed to sign in (mirrors backend ALLOWED_EMAILS)
+  allowed_emails   = ""
+
+  # Static data sources (Drive-first, GCS fallback)
+  gcs_data_bucket  = "collection-showcase-data"
+  drive_folder_id  = "19lv9yCm4zWQHxr0K3DI7jBW3fp18b0li"
+  drive_api_key    = ""  # Google API key with Drive API enabled (can reuse Firebase key if Drive API is on)
+
 [markup]
   [markup.goldmark]
     [markup.goldmark.renderer]

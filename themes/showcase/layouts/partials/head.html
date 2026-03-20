@@ -20,4 +20,10 @@
     messagingSenderId: "{{ .Site.Params.firebase_messaging_sender_id }}",
     appId:             "{{ .Site.Params.firebase_app_id }}",
   };
+  window.ALLOWED_EMAILS = {{ .Site.Params.allowed_emails | strings.Split "," | jsonify }};
+  window.DATA_CONFIG = {
+    gcsBucket:    "{{ .Site.Params.gcs_data_bucket }}",
+    driveFolderId: "{{ .Site.Params.drive_folder_id }}",
+    driveApiKey:  "{{ .Site.Params.drive_api_key }}",
+  };
 </script>

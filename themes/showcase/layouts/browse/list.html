@@ -1,0 +1,226 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-eye me-2 text-primary"></i>Browse Collection</h2>
+  <span class="badge text-bg-secondary" id="total-badge"></span>
+</div>
+<p class="text-muted small mb-4">Public view of current holdings. Data sourced from Google Drive (GCS fallback).</p>
+
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="error-state" class="alert alert-danger d-none"></div>
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-inbox fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No collection data found.</p>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4 d-none" id="summary-row">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold text-primary" id="stat-items">—</div>
+      <div class="text-muted small mt-1">Distinct Items</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold text-primary" id="stat-qty">—</div>
+      <div class="text-muted small mt-1">Total Quantity</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold text-primary" id="stat-invested">—</div>
+      <div class="text-muted small mt-1">Total Invested</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold text-primary" id="stat-avg">—</div>
+      <div class="text-muted small mt-1">Avg Unit Cost</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-3 d-none" id="filters-card">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small fw-medium mb-1">Search</label>
+        <input type="text" class="form-control form-control-sm" id="filter-search" placeholder="Product name…">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-medium mb-1">Game</label>
+        <select class="form-select form-select-sm" id="filter-game">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-medium mb-1">Subcategory</label>
+        <select class="form-select form-select-sm" id="filter-sub">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-medium mb-1">Type</label>
+        <select class="form-select form-select-sm" id="filter-type">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-1 text-end">
+        <button class="btn btn-sm btn-outline-secondary w-100" id="btn-clear">Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card shadow-sm border-0 d-none" id="items-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Product</th>
+            <th>Game</th>
+            <th>Subcategory</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Avg Cost</th>
+            <th>Total Invested</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  let allRows = [];
+
+  (async () => {
+    try {
+      const [collection, products] = await Promise.all([
+        loadJsonData('collection.json'),
+        loadJsonData('products.json'),
+      ]);
+
+      document.getElementById('loading').classList.add('d-none');
+
+      if (!collection || collection.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+
+      const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p]));
+
+      // Join collection with product info
+      allRows = collection.map(c => {
+        const p = productMap[c.product_id] || {};
+        return {
+          product_id:       c.product_id,
+          name:             p.name             || c.product_id,
+          game_category:    p.game_category    || '',
+          game_subcategory: p.game_subcategory || '',
+          product_category: p.product_category || '',
+          quantity:         c.quantity,
+          avg_unit_cost:    c.avg_unit_cost,
+          total_invested:   c.total_invested,
+        };
+      });
+
+      populateFilters(allRows);
+      renderTable(allRows);
+      renderSummary(allRows);
+
+      document.getElementById('filters-card').classList.remove('d-none');
+      document.getElementById('items-card').classList.remove('d-none');
+      document.getElementById('summary-row').classList.remove('d-none');
+
+      // Wire up filters
+      ['filter-search', 'filter-game', 'filter-sub', 'filter-type'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
+      });
+      document.getElementById('btn-clear').addEventListener('click', () => {
+        document.getElementById('filter-search').value = '';
+        document.getElementById('filter-game').value   = '';
+        document.getElementById('filter-sub').value    = '';
+        document.getElementById('filter-type').value   = '';
+        applyFilters();
+      });
+
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      const err = document.getElementById('error-state');
+      err.textContent = 'Failed to load data: ' + e.message;
+      err.classList.remove('d-none');
+    }
+  })();
+
+  function applyFilters() {
+    const search = document.getElementById('filter-search').value.toLowerCase().trim();
+    const game   = document.getElementById('filter-game').value;
+    const sub    = document.getElementById('filter-sub').value;
+    const type   = document.getElementById('filter-type').value;
+
+    const filtered = allRows.filter(r =>
+      (!search || r.name.toLowerCase().includes(search)) &&
+      (!game   || r.game_category    === game) &&
+      (!sub    || r.game_subcategory === sub)  &&
+      (!type   || r.product_category === type)
+    );
+
+    renderTable(filtered);
+    renderSummary(filtered);
+  }
+
+  function populateFilters(rows) {
+    const games = [...new Set(rows.map(r => r.game_category).filter(Boolean))].sort();
+    const subs  = [...new Set(rows.map(r => r.game_subcategory).filter(Boolean))].sort();
+    const types = [...new Set(rows.map(r => r.product_category).filter(Boolean))].sort();
+
+    appendOptions('filter-game', games);
+    appendOptions('filter-sub',  subs);
+    appendOptions('filter-type', types);
+  }
+
+  function appendOptions(id, values) {
+    const sel = document.getElementById(id);
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderTable(rows) {
+    document.getElementById('total-badge').textContent = rows.length + ' item' + (rows.length !== 1 ? 's' : '');
+    document.getElementById('items-tbody').innerHTML = rows.map(r => `
+      <tr>
+        <td class="ps-3 fw-medium">${esc(r.name)}</td>
+        <td><span class="badge text-bg-light border">${esc(r.game_category)}</span></td>
+        <td class="text-muted small">${esc(r.game_subcategory)}</td>
+        <td class="text-muted small">${esc(r.product_category)}</td>
+        <td>${r.quantity}</td>
+        <td>${fmt$(r.avg_unit_cost)}</td>
+        <td class="fw-medium">${fmt$(r.total_invested)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderSummary(rows) {
+    const totalQty      = rows.reduce((s, r) => s + r.quantity, 0);
+    const totalInvested = rows.reduce((s, r) => s + r.total_invested, 0);
+    document.getElementById('stat-items').textContent    = rows.length;
+    document.getElementById('stat-qty').textContent      = totalQty;
+    document.getElementById('stat-invested').textContent = fmt$(totalInvested);
+    document.getElementById('stat-avg').textContent      = totalQty ? fmt$(totalInvested / totalQty) : '—';
+  }
+
+  function fmt$(n) { return '$' + Number(n || 0).toFixed(2); }
+  function esc(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || ''))); return d.innerHTML; }
+</script>
+{{ end }}
