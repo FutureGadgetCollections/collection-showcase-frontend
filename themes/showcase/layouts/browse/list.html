@@ -80,7 +80,8 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-3">Product</th>
+            <th class="ps-3" style="width:56px"></th>
+            <th>Product</th>
             <th>Game</th>
             <th>Subcategory</th>
             <th>Type</th>
@@ -91,6 +92,17 @@
         </thead>
         <tbody id="items-tbody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Image lightbox modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow bg-transparent">
+      <div class="modal-body p-0 text-center">
+        <img id="image-modal-img" src="" alt="" class="img-fluid rounded shadow" style="max-height:80vh">
+      </div>
     </div>
   </div>
 </div>
@@ -125,6 +137,7 @@
           game_category:    p.game_category    || '',
           game_subcategory: p.game_subcategory || '',
           product_category: p.product_category || '',
+          image_url:        p.image_url        || '',
           quantity:         c.quantity,
           avg_unit_cost:    c.avg_unit_cost,
           total_invested:   c.total_invested,
@@ -196,11 +209,28 @@
     });
   }
 
+  const imageModal    = new bootstrap.Modal(document.getElementById('imageModal'));
+  const imageModalImg = document.getElementById('image-modal-img');
+
+  function openImage(url) {
+    imageModalImg.src = url;
+    imageModal.show();
+  }
+
   function renderTable(rows) {
     document.getElementById('total-badge').textContent = rows.length + ' item' + (rows.length !== 1 ? 's' : '');
     document.getElementById('items-tbody').innerHTML = rows.map(r => `
       <tr>
-        <td class="ps-3 fw-medium">${esc(r.name)}</td>
+        <td class="ps-3">
+          ${r.image_url
+            ? `<img src="${esc(r.image_url)}" alt="${esc(r.name)}"
+                    class="rounded border browse-thumb"
+                    onclick="openImage('${esc(r.image_url)}')"
+                    style="width:44px;height:44px;object-fit:contain;cursor:zoom-in">`
+            : `<span class="d-inline-flex align-items-center justify-content-center rounded border bg-light text-muted"
+                     style="width:44px;height:44px"><i class="bi bi-image"></i></span>`}
+        </td>
+        <td class="fw-medium">${esc(r.name)}</td>
         <td><span class="badge text-bg-light border">${esc(r.game_category)}</span></td>
         <td class="text-muted small">${esc(r.game_subcategory)}</td>
         <td class="text-muted small">${esc(r.product_category)}</td>
