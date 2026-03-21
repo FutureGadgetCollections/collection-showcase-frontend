@@ -26,6 +26,9 @@ jobs:
           hugo-version: latest
           extended: true
 
+      - name: Set version
+        run: echo "HUGO_PARAMS_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Build
         run: hugo --minify --baseURL "https://futuregadgetcollections.github.io/collection-showcase-frontend/"
         env:

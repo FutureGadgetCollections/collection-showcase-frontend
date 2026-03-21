@@ -20,6 +20,7 @@
     messagingSenderId: "{{ .Site.Params.firebase.messaging.sender.id }}",
     appId:             "{{ .Site.Params.firebase.app.id }}",
   };
+  window.APP_VERSION = "{{ .Site.Params.version | default "dev" }}";
   window.ALLOWED_EMAILS = {{ split .Site.Params.allowed.emails "," | jsonify }};
   window.DATA_CONFIG = {
     gcsBucket:      "{{ .Site.Params.gcs.data.bucket }}",

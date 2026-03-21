@@ -112,6 +112,7 @@
     const c = window.DATA_CONFIG || {};
     const f = window.FIREBASE_CONFIG || {};
     document.getElementById('config-tbody').innerHTML = [
+      row('App version',           window.APP_VERSION || '—'),
       row('Firebase project ID',   f.projectId),
       row('Firebase auth domain',  f.authDomain),
       row('Firebase app ID',       f.appId),

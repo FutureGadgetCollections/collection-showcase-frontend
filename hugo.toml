@@ -6,6 +6,7 @@ theme = "showcase"
 [params]
   description = "FutureGadgetCollections — browse and manage your TCG collection"
   backendURL = "http://localhost:8080"
+  version = "dev"
 
   # Firebase config — nested to match HUGO_PARAMS_FIREBASE_* env var mapping
   [params.firebase.api]
