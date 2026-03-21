@@ -1,0 +1,215 @@
+{{ define "main" }}
+<div class="d-flex align-items-center mb-4">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-bug me-2 text-primary"></i>Debug Info</h2>
+</div>
+
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view debug info.
+</div>
+<div id="admin-guard" class="alert alert-secondary d-none">
+  <i class="bi bi-shield-lock me-1"></i>Debug info is only available to admin users.
+</div>
+
+<div id="debug-content" class="d-none">
+
+  <!-- Frontend Config -->
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent fw-semibold border-0 pb-0">
+      <i class="bi bi-sliders me-2 text-primary"></i>Frontend Config
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm align-middle mb-0">
+        <tbody id="config-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Auth State -->
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent fw-semibold border-0 pb-0">
+      <i class="bi bi-person-check me-2 text-primary"></i>Auth State
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm align-middle mb-0">
+        <tbody id="auth-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Connectivity -->
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent fw-semibold border-0 pb-0">
+      <i class="bi bi-wifi me-2 text-primary"></i>Connectivity
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm align-middle mb-0">
+        <tbody id="connectivity-tbody"></tbody>
+      </table>
+    </div>
+    <div class="card-footer border-0 bg-transparent">
+      <button class="btn btn-sm btn-outline-primary" onclick="runChecks()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Re-run checks
+      </button>
+    </div>
+  </div>
+
+  <!-- Token -->
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-transparent fw-semibold border-0 pb-0">
+      <i class="bi bi-key me-2 text-primary"></i>Firebase ID Token
+    </div>
+    <div class="card-body">
+      <textarea id="token-display" class="form-control font-monospace small" rows="4" readonly placeholder="Loading…"></textarea>
+      <div class="mt-2 d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="copyToken()">
+          <i class="bi bi-clipboard me-1"></i>Copy
+        </button>
+        <button class="btn btn-sm btn-outline-primary" onclick="refreshToken()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Force refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  let currentUser = null;
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    if (!isEmailAllowed(user.email)) {
+      document.getElementById('admin-guard').classList.remove('d-none');
+      return;
+    }
+    currentUser = user;
+    document.getElementById('debug-content').classList.remove('d-none');
+    renderConfig();
+    await renderAuth();
+    await runChecks();
+  });
+
+  function row(label, value, status) {
+    const badge = status === 'ok'
+      ? '<span class="badge text-bg-success ms-2">ok</span>'
+      : status === 'warn'
+      ? '<span class="badge text-bg-warning ms-2">warn</span>'
+      : status === 'err'
+      ? '<span class="badge text-bg-danger ms-2">error</span>'
+      : '';
+    return `<tr>
+      <td class="ps-3 text-muted small" style="width:220px">${label}</td>
+      <td class="font-monospace small">${escHtml(String(value ?? '—'))}${badge}</td>
+    </tr>`;
+  }
+
+  function renderConfig() {
+    const c = window.DATA_CONFIG || {};
+    const f = window.FIREBASE_CONFIG || {};
+    document.getElementById('config-tbody').innerHTML = [
+      row('Firebase project ID',   f.projectId),
+      row('Firebase auth domain',  f.authDomain),
+      row('Firebase app ID',       f.appId),
+      row('Backend URL',           document.body.dataset.backendUrl || '(not set)'),
+      row('GitHub data repo',      c.githubDataRepo || '(not set)'),
+      row('GCS data bucket',       c.gcsBucket || '(not set)'),
+      row('Allowed emails',        (window.ALLOWED_EMAILS || []).join(', ') || '(none)'),
+    ].join('');
+  }
+
+  async function renderAuth() {
+    const user = currentUser;
+    let tokenExp = '—';
+    let tokenStatus = '';
+    try {
+      const token = await user.getIdToken();
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = new Date(payload.exp * 1000);
+      const now = new Date();
+      const minsLeft = Math.round((exp - now) / 60000);
+      tokenExp = `${exp.toLocaleTimeString()} (${minsLeft}m remaining)`;
+      tokenStatus = minsLeft > 5 ? 'ok' : 'warn';
+      document.getElementById('token-display').value = token;
+    } catch (e) {
+      tokenExp = e.message;
+      tokenStatus = 'err';
+    }
+
+    document.getElementById('auth-tbody').innerHTML = [
+      row('Signed in as',   user.email),
+      row('UID',            user.uid),
+      row('Token expires',  tokenExp, tokenStatus),
+    ].join('');
+  }
+
+  async function runChecks() {
+    const tbody = document.getElementById('connectivity-tbody');
+    tbody.innerHTML = row('Backend /health', 'checking…') +
+                      row('GitHub data',     'checking…') +
+                      row('GCS data',        'checking…');
+
+    const backendUrl = (document.body.dataset.backendUrl || '').replace(/\/$/, '');
+    const { githubDataRepo, gcsBucket } = window.DATA_CONFIG || {};
+
+    const checks = [
+      {
+        label: 'Backend /health',
+        fn: async () => {
+          const res = await fetch(`${backendUrl}/health`);
+          const j = await res.json();
+          return { value: `HTTP ${res.status} — ${JSON.stringify(j)}`, status: res.ok ? 'ok' : 'err' };
+        },
+      },
+      {
+        label: 'GitHub data (products.json)',
+        fn: async () => {
+          const url = `https://raw.githubusercontent.com/${githubDataRepo}/main/products.json`;
+          const res = await fetch(url);
+          return { value: `HTTP ${res.status}`, status: res.ok ? 'ok' : 'err' };
+        },
+      },
+      {
+        label: 'GCS data — fallback (products.json)',
+        fn: async () => {
+          const url = `https://storage.googleapis.com/${gcsBucket}/products.json`;
+          const res = await fetch(url);
+          return { value: `HTTP ${res.status}`, status: res.ok ? 'ok' : 'warn' };
+        },
+      },
+    ];
+
+    const results = await Promise.all(checks.map(async c => {
+      try {
+        const r = await c.fn();
+        return row(c.label, r.value, r.status);
+      } catch (e) {
+        return row(c.label, e.message, 'err');
+      }
+    }));
+    tbody.innerHTML = results.join('');
+  }
+
+  async function refreshToken() {
+    try {
+      const token = await currentUser.getIdToken(true);
+      document.getElementById('token-display').value = token;
+      await renderAuth();
+      showToast('Token refreshed', 'success');
+    } catch (e) {
+      showToast('Refresh failed: ' + e.message, 'danger');
+    }
+  }
+
+  function copyToken() {
+    const val = document.getElementById('token-display').value;
+    navigator.clipboard.writeText(val).then(() => showToast('Token copied', 'success'));
+  }
+
+  function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+</script>
+{{ end }}

@@ -43,6 +43,10 @@ body {
   cursor: not-allowed;
 }
 
+/* ─── Spin animation ─────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 0.75s linear infinite; }
+
 /* ─── Spinner page center ────────────────────────────────── */
 #loading {
   min-height: 200px;
