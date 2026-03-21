@@ -75,8 +75,8 @@
   async function loadItems() {
     try {
       const [items, products] = await Promise.all([
-        api('GET', '/collection'),
-        api('GET', '/products'),
+        loadJsonData('collection.json'),
+        loadJsonData('products.json'),
       ]);
       document.getElementById('loading').classList.add('d-none');
 

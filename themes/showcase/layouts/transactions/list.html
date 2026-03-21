@@ -114,7 +114,7 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
-    [products] = await Promise.all([api('GET', '/products'), loadItems()]);
+    [products] = await Promise.all([loadJsonData('products.json'), loadItems()]);
     populateProductSelect(products);
   });
 
@@ -132,7 +132,7 @@
 
   async function loadItems() {
     try {
-      const items = await api('GET', '/transactions');
+      const items = await loadJsonData('transactions.json');
       document.getElementById('loading').classList.add('d-none');
       if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');

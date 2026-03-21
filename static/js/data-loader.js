@@ -1,28 +1,16 @@
-// Fetches a JSON file from Google Drive first, falls back to GCS.
-// Requires window.DATA_CONFIG = { gcsBucket, driveFolderId, driveApiKey }
+// Fetches a JSON file: tries GitHub raw first, falls back to GCS.
+// Requires window.DATA_CONFIG = { gcsBucket, githubDataRepo }
 async function loadJsonData(filename) {
-  const { gcsBucket, driveFolderId, driveApiKey } = window.DATA_CONFIG || {};
+  const { gcsBucket, githubDataRepo } = window.DATA_CONFIG || {};
 
-  // --- Try Google Drive ---
-  // Note: the Drive folder and files must be shared as "Anyone with the link can view"
-  // for this to work without user authentication.
-  if (driveFolderId && driveApiKey) {
+  // --- Try GitHub raw ---
+  if (githubDataRepo) {
     try {
-      const q = encodeURIComponent(`name='${filename}' and '${driveFolderId}' in parents and trashed=false`);
-      const searchRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&key=${driveApiKey}`
-      );
-      if (searchRes.ok) {
-        const { files } = await searchRes.json();
-        if (files && files.length > 0) {
-          const fileRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${files[0].id}?alt=media&key=${driveApiKey}`
-          );
-          if (fileRes.ok) return await fileRes.json();
-        }
-      }
+      const res = await fetch(`https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}`);
+      if (res.ok) return await res.json();
+      console.warn(`GitHub fetch returned ${res.status} for ${filename}, falling back to GCS`);
     } catch (e) {
-      console.warn(`Drive fetch failed for ${filename}, falling back to GCS:`, e);
+      console.warn(`GitHub fetch failed for ${filename}, falling back to GCS:`, e);
     }
   }
 

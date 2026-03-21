@@ -22,8 +22,7 @@
   };
   window.ALLOWED_EMAILS = {{ split .Site.Params.allowed.emails "," | jsonify }};
   window.DATA_CONFIG = {
-    gcsBucket:    "{{ .Site.Params.gcs.data.bucket }}",
-    driveFolderId: "{{ .Site.Params.drive.folder.id }}",
-    driveApiKey:  "{{ .Site.Params.drive.api.key }}",
+    gcsBucket:      "{{ .Site.Params.gcs.data.bucket }}",
+    githubDataRepo: "{{ .Site.Params.github.data.repo }}",
   };
 </script>

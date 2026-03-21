@@ -18,14 +18,39 @@
   <p class="text-muted mt-2">No products yet. Add your first one!</p>
 </div>
 
+<!-- Filters -->
+<div class="card shadow-sm border-0 d-none mb-3" id="filters-card">
+  <div class="card-body py-2">
+    <div class="row g-2">
+      <div class="col-sm-4">
+        <select class="form-select form-select-sm" id="filter-game" onchange="applyFilters()">
+          <option value="">All Games</option>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <select class="form-select form-select-sm" id="filter-subcategory" onchange="applyFilters()">
+          <option value="">All Sets</option>
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <select class="form-select form-select-sm" id="filter-product-category" onchange="applyFilters()">
+          <option value="">All Product Types</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card shadow-sm border-0 d-none" id="items-card">
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-3">Name</th>
-            <th>Game / Category</th>
+            <th class="ps-3">Product</th>
+            <th>Game</th>
+            <th>Set</th>
+            <th>Type</th>
             <th>Added</th>
             <th class="text-end pe-3">Actions</th>
           </tr>
@@ -122,14 +147,18 @@
     await loadItems();
   });
 
+  let allItems = [];
+
   async function loadItems() {
     try {
-      const items = await api('GET', '/products');
+      const items = await loadJsonData('products.json');
       document.getElementById('loading').classList.add('d-none');
       if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
         return;
       }
+      allItems = items;
+      populateFilters(items);
       renderItems(items);
     } catch (e) {
       document.getElementById('loading').classList.add('d-none');
@@ -137,13 +166,49 @@
     }
   }
 
+  function populateFilters(items) {
+    const games    = [...new Set(items.map(p => p.game_category).filter(Boolean))].sort();
+    const sets     = [...new Set(items.map(p => p.game_subcategory).filter(Boolean))].sort();
+    const types    = [...new Set(items.map(p => p.product_category).filter(Boolean))].sort();
+    const fill = (id, opts) => {
+      const sel = document.getElementById(id);
+      const first = sel.options[0].outerHTML;
+      sel.innerHTML = first + opts.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    };
+    fill('filter-game', games);
+    fill('filter-subcategory', sets);
+    fill('filter-product-category', types);
+    document.getElementById('filters-card').classList.remove('d-none');
+  }
+
+  function applyFilters() {
+    const game = document.getElementById('filter-game').value;
+    const sub  = document.getElementById('filter-subcategory').value;
+    const type = document.getElementById('filter-product-category').value;
+    const filtered = allItems.filter(p =>
+      (!game || p.game_category === game) &&
+      (!sub  || p.game_subcategory === sub) &&
+      (!type || p.product_category === type)
+    );
+    renderItems(filtered);
+  }
+
   function renderItems(items) {
     document.getElementById('items-card').classList.remove('d-none');
     document.getElementById('empty-state').classList.add('d-none');
     document.getElementById('items-tbody').innerHTML = items.map(p => `
       <tr>
-        <td class="ps-3 fw-medium">${escHtml(p.name)}</td>
+        <td class="ps-3">
+          <div class="d-flex align-items-center gap-2">
+            ${p.image_url
+              ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;">`
+              : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`}
+            <span class="fw-medium">${escHtml(p.name)}</span>
+          </div>
+        </td>
         <td class="text-muted">${escHtml(p.game_category || '—')}</td>
+        <td class="text-muted">${escHtml(p.game_subcategory || '—')}</td>
+        <td class="text-muted">${escHtml(p.product_category || '—')}</td>
         <td class="text-muted small">${fmtDate(p.created_at)}</td>
         <td class="text-end pe-3">
           <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(p)})'>

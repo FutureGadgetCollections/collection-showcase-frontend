@@ -28,10 +28,8 @@ theme = "showcase"
   # Static data sources — maps to HUGO_PARAMS_GCS_DATA_BUCKET -> gcs.data.bucket etc.
   [params.gcs.data]
     bucket = "collection-showcase-data"
-  [params.drive.folder]
-    id = "19lv9yCm4zWQHxr0K3DI7jBW3fp18b0li"
-  [params.drive.api]
-    key = ""
+  [params.github.data]
+    repo = "FutureGadgetCollections/collection-showcase-data"
 
 [markup]
   [markup.goldmark]

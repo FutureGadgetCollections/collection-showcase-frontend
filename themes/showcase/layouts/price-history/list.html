@@ -125,7 +125,7 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
-    const [, products] = await Promise.all([loadItems(), api('GET', '/products')]);
+    const [, products] = await Promise.all([loadItems(), loadJsonData('products.json')]);
     populateProductSelect(products || []);
   });
 
@@ -139,8 +139,8 @@
   async function loadItems() {
     try {
       const [items, prods] = await Promise.all([
-        api('GET', '/price-history'),
-        api('GET', '/products'),
+        loadJsonData('price_history.json'),
+        loadJsonData('products.json'),
       ]);
       productMap = Object.fromEntries((prods || []).map(p => [p.product_id, p.name]));
       document.getElementById('loading').classList.add('d-none');
