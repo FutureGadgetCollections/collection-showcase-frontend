@@ -4,7 +4,7 @@ const BACKEND_URL = (document.body.dataset.backendUrl || "").replace(/\/$/, "");
  * Authenticated fetch wrapper.
  * Attaches the current Firebase user's ID token as a Bearer token.
  */
-async function api(method, path, body) {
+async function api(method, path, body, _retry = true) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error("Not authenticated");
 
@@ -19,6 +19,10 @@ async function api(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${BACKEND_URL}${path}`, opts);
+  if (res.status === 401 && _retry) {
+    await user.getIdToken(true);
+    return api(method, path, body, false);
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try { const j = await res.json(); msg = j.message || j.error || msg; } catch (_) {}
