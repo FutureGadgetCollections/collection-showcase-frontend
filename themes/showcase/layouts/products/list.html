@@ -2,9 +2,17 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-box me-2 text-primary"></i>Products</h2>
   <div class="d-flex gap-2">
-    <button id="btn-refresh" class="btn btn-outline-secondary btn-sm d-none" onclick="refreshItems()">
-      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-    </button>
+    <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
+      <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
+        <i class="bi bi-github me-1"></i>GitHub
+      </button>
+      <button class="btn btn-outline-secondary" onclick="refreshItems('gcs')">
+        <i class="bi bi-cloud me-1"></i>GCS
+      </button>
+      <button class="btn btn-outline-primary" onclick="refreshItems('api')">
+        <i class="bi bi-plug me-1"></i>API
+      </button>
+    </div>
     <button id="btn-add-product" class="btn btn-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
       <i class="bi bi-plus-lg me-1"></i>Add Product
     </button>
@@ -149,24 +157,29 @@
       return;
     }
     document.getElementById('btn-add-product').classList.remove('d-none');
-    document.getElementById('btn-refresh').classList.remove('d-none');
+    document.getElementById('btn-refresh-group').classList.remove('d-none');
     await loadItems();
   });
 
   let allItems = [];
 
-  async function refreshItems() {
-    const btn = document.getElementById('btn-refresh');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1 spin"></i>Refreshing…';
-    await loadItems();
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh';
+  async function refreshItems(source) {
+    const btns = document.querySelectorAll('#btn-refresh-group button');
+    btns.forEach(b => b.disabled = true);
+    await loadItems(source);
+    btns.forEach(b => b.disabled = false);
   }
 
-  async function loadItems() {
+  async function loadItems(source = 'github') {
     try {
-      const items = await loadJsonData('products.json');
+      let items;
+      if (source === 'api') {
+        items = await api('GET', '/products');
+      } else if (source === 'gcs') {
+        items = await loadFromGCS('products.json');
+      } else {
+        items = await loadJsonData('products.json');
+      }
       document.getElementById('loading').classList.add('d-none');
       if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
