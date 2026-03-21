@@ -1,7 +1,12 @@
 {{ define "main" }}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-grid me-2 text-primary"></i>Collection</h2>
-  <span class="badge text-bg-secondary" id="total-badge"></span>
+  <div class="d-flex align-items-center gap-2">
+    <button id="btn-sync" class="btn btn-outline-secondary btn-sm d-none" onclick="triggerSync(this)">
+      <i class="bi bi-cloud-upload me-1"></i>Sync
+    </button>
+    <span class="badge text-bg-secondary" id="total-badge"></span>
+  </div>
 </div>
 <p class="text-muted small mb-4">Current inventory — derived from all buy/sell transactions.</p>
 
@@ -69,6 +74,7 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
+    document.getElementById('btn-sync').classList.remove('d-none');
     await loadItems();
   });
 

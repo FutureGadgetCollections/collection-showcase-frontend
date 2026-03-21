@@ -1,9 +1,14 @@
 {{ define "main" }}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Transactions</h2>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
-    <i class="bi bi-plus-lg me-1"></i>Log Transaction
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)">
+      <i class="bi bi-cloud-upload me-1"></i>Sync
+    </button>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+      <i class="bi bi-plus-lg me-1"></i>Log Transaction
+    </button>
+  </div>
 </div>
 
 <div id="auth-guard" class="alert alert-warning d-none">
@@ -73,6 +78,20 @@
               <span class="input-group-text">$</span>
               <input type="number" class="form-control" id="item-price" min="0" step="0.01" placeholder="0.00">
             </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-platform">Platform</label>
+            <select class="form-select" id="item-platform">
+              <option value="">— optional —</option>
+              <option value="tcgplayer">TCGPlayer</option>
+              <option value="ebay">eBay</option>
+              <option value="facebook">Facebook</option>
+              <option value="local">Local</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small fw-medium" for="item-notes">Notes</label>
+            <input type="text" class="form-control" id="item-notes" placeholder="optional">
           </div>
         </div>
         <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
@@ -178,6 +197,8 @@
     document.getElementById('item-type').value = 'buy';
     document.getElementById('item-qty').value = '';
     document.getElementById('item-price').value = '';
+    document.getElementById('item-platform').value = '';
+    document.getElementById('item-notes').value = '';
     document.getElementById('modal-error').classList.add('d-none');
   }
 
@@ -189,6 +210,8 @@
     document.getElementById('item-type').value = t.transaction_type;
     document.getElementById('item-qty').value = t.quantity;
     document.getElementById('item-price').value = t.price;
+    document.getElementById('item-platform').value = t.platform || '';
+    document.getElementById('item-notes').value = t.notes || '';
     document.getElementById('modal-error').classList.add('d-none');
     itemModal.show();
   }
@@ -209,10 +232,13 @@
       return;
     }
 
+    const platform = document.getElementById('item-platform').value;
+    const notes    = document.getElementById('item-notes').value;
+
     const btn = document.getElementById('modal-save-btn');
     btn.disabled = true;
     try {
-      const body = { product_id: product, transaction_date: date, transaction_type: type, quantity: qty, price };
+      const body = { product_id: product, transaction_date: date, transaction_type: type, quantity: qty, price, platform, notes };
       if (id) { await api('PUT',  `/transactions/${id}`, body); }
       else    { await api('POST', '/transactions', body); }
       itemModal.hide();

@@ -1,9 +1,14 @@
 {{ define "main" }}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Price History</h2>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
-    <i class="bi bi-plus-lg me-1"></i>Add Snapshot
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)">
+      <i class="bi bi-cloud-upload me-1"></i>Sync
+    </button>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+      <i class="bi bi-plus-lg me-1"></i>Add Snapshot
+    </button>
+  </div>
 </div>
 
 <div id="auth-guard" class="alert alert-warning d-none">

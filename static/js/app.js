@@ -1,3 +1,19 @@
+// Triggers POST /sync and shows a toast with the result.
+async function triggerSync(btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1 spin"></i>Syncing…';
+  try {
+    await api('POST', '/sync');
+    showToast('Sync started — data files will update shortly.', 'success');
+  } catch (e) {
+    showToast('Sync failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
 // Global toast helper
 function showToast(message, type = "secondary") {
   let container = document.getElementById("toast-container");
