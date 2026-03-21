@@ -5,6 +5,17 @@
     <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)">
       <i class="bi bi-cloud-upload me-1"></i>Sync
     </button>
+    <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
+      <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
+        <i class="bi bi-github me-1"></i>GitHub
+      </button>
+      <button class="btn btn-outline-secondary" onclick="refreshItems('gcs')">
+        <i class="bi bi-cloud me-1"></i>GCS
+      </button>
+      <button class="btn btn-outline-primary" onclick="refreshItems('api')">
+        <i class="bi bi-plug me-1"></i>API
+      </button>
+    </div>
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
       <i class="bi bi-plus-lg me-1"></i>Log Transaction
     </button>
@@ -133,6 +144,7 @@
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
+    document.getElementById('btn-refresh-group').classList.remove('d-none');
     [products] = await Promise.all([loadJsonData('products.json'), loadItems()]);
     populateProductSelect(products);
   });
@@ -149,9 +161,23 @@
     return p ? p.name : id;
   }
 
-  async function loadItems() {
+  async function refreshItems(source) {
+    const btns = document.querySelectorAll('#btn-refresh-group button');
+    btns.forEach(b => b.disabled = true);
+    await loadItems(source);
+    btns.forEach(b => b.disabled = false);
+  }
+
+  async function loadItems(source = 'github') {
     try {
-      const items = await loadJsonData('transactions.json');
+      let items;
+      if (source === 'api') {
+        items = await api('GET', '/transactions');
+      } else if (source === 'gcs') {
+        items = await loadFromGCS('transactions.json');
+      } else {
+        items = await loadJsonData('transactions.json');
+      }
       document.getElementById('loading').classList.add('d-none');
       if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');

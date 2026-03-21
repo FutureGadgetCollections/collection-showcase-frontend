@@ -5,6 +5,17 @@
     <button id="btn-sync" class="btn btn-outline-secondary btn-sm d-none" onclick="triggerSync(this)">
       <i class="bi bi-cloud-upload me-1"></i>Sync
     </button>
+    <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
+      <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
+        <i class="bi bi-github me-1"></i>GitHub
+      </button>
+      <button class="btn btn-outline-secondary" onclick="refreshItems('gcs')">
+        <i class="bi bi-cloud me-1"></i>GCS
+      </button>
+      <button class="btn btn-outline-primary" onclick="refreshItems('api')">
+        <i class="bi bi-plug me-1"></i>API
+      </button>
+    </div>
     <span class="badge text-bg-secondary" id="total-badge"></span>
   </div>
 </div>
@@ -75,14 +86,25 @@
       return;
     }
     document.getElementById('btn-sync').classList.remove('d-none');
+    document.getElementById('btn-refresh-group').classList.remove('d-none');
     await loadItems();
   });
 
-  async function loadItems() {
+  async function refreshItems(source) {
+    const btns = document.querySelectorAll('#btn-refresh-group button');
+    btns.forEach(b => b.disabled = true);
+    await loadItems(source);
+    btns.forEach(b => b.disabled = false);
+  }
+
+  async function loadItems(source = 'github') {
     try {
+      const loader = source === 'api' ? f => api('GET', '/' + f.replace('.json', ''))
+                   : source === 'gcs' ? loadFromGCS
+                   : loadJsonData;
       const [items, products] = await Promise.all([
-        loadJsonData('collection.json'),
-        loadJsonData('products.json'),
+        loader('collection.json'),
+        loader('products.json'),
       ]);
       document.getElementById('loading').classList.add('d-none');
 
