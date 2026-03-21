@@ -56,7 +56,7 @@
         </div>
         <div class="mb-3">
           <label class="form-label small fw-medium" for="item-subcategory">Subcategory</label>
-          <input type="text" class="form-control" id="item-subcategory" placeholder="e.g. First Edition">
+          <input type="text" class="form-control" id="item-game-subcategory" placeholder="e.g. First Edition">
         </div>
         <div class="mb-3">
           <label class="form-label small fw-medium" for="item-product-category">Product Category</label>
@@ -162,7 +162,7 @@
     document.getElementById('item-id').value = '';
     document.getElementById('item-name').value = '';
     document.getElementById('item-game').value = '';
-    document.getElementById('item-subcategory').value = '';
+    document.getElementById('item-game-subcategory').value = '';
     document.getElementById('item-product-category').value = '';
     document.getElementById('item-tcgplayer-id').value = '';
     document.getElementById('item-pricecharting-url').value = '';
@@ -175,7 +175,7 @@
     document.getElementById('item-id').value = item.product_id;
     document.getElementById('item-name').value = item.name;
     document.getElementById('item-game').value = item.game_category || '';
-    document.getElementById('item-subcategory').value = item.subcategory || '';
+    document.getElementById('item-game-subcategory').value = item.game_subcategory || '';
     document.getElementById('item-product-category').value = item.product_category || '';
     document.getElementById('item-tcgplayer-id').value = item.tcgplayer_id || '';
     document.getElementById('item-pricecharting-url').value = item.pricecharting_url || '';
@@ -198,7 +198,7 @@
       const body = {
         name,
         game_category: game || null,
-        subcategory: document.getElementById('item-subcategory').value.trim() || null,
+        game_subcategory: document.getElementById('item-game-subcategory').value.trim() || null,
         product_category: document.getElementById('item-product-category').value.trim() || null,
         tcgplayer_id: document.getElementById('item-tcgplayer-id').value.trim() || null,
         pricecharting_url: document.getElementById('item-pricecharting-url').value.trim() || null,
