@@ -147,9 +147,10 @@
       return;
     }
     document.getElementById('btn-refresh-group').classList.remove('d-none');
-    [products] = await Promise.all([loadJsonData('products.json'), loadItems()]);
+    products = await loadJsonData('products.json');
     productMap = Object.fromEntries(products.map(p => [p.product_id, p]));
     populateProductSelect(products);
+    await loadItems();
   });
 
   function populateProductSelect(prods) {
