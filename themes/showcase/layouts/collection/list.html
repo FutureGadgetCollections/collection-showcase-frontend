@@ -108,7 +108,7 @@
       ]);
       document.getElementById('loading').classList.add('d-none');
 
-      const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p.name]));
+      const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p]));
 
       if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
@@ -126,14 +126,25 @@
       document.getElementById('summary-row').classList.remove('d-none');
 
       document.getElementById('items-card').classList.remove('d-none');
-      document.getElementById('items-tbody').innerHTML = items.map(i => `
+      document.getElementById('items-tbody').innerHTML = items.map(i => {
+        const p = productMap[i.product_id];
+        const name = p ? p.name : i.product_id;
+        const img = p && p.image_url
+          ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;flex-shrink:0;">`
+          : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
+        return `
         <tr>
-          <td class="ps-3 fw-medium">${escHtml(productMap[i.product_id] || i.product_id)}</td>
+          <td class="ps-3">
+            <div class="d-flex align-items-center gap-2">
+              ${img}
+              <span class="fw-medium">${escHtml(name)}</span>
+            </div>
+          </td>
           <td>${i.quantity}</td>
           <td>${fmt$(i.avg_unit_cost)}</td>
           <td>${fmt$(i.total_invested)}</td>
-        </tr>
-      `).join('');
+        </tr>`;
+      }).join('');
     } catch (e) {
       document.getElementById('loading').classList.add('d-none');
       showToast('Failed to load collection: ' + e.message, 'danger');

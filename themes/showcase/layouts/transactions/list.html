@@ -138,6 +138,7 @@
   const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
   const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
   let products = [];
+  let productMap = {};
 
   firebase.auth().onAuthStateChanged(async user => {
     if (!user) {
@@ -147,6 +148,7 @@
     }
     document.getElementById('btn-refresh-group').classList.remove('d-none');
     [products] = await Promise.all([loadJsonData('products.json'), loadItems()]);
+    productMap = Object.fromEntries(products.map(p => [p.product_id, p]));
     populateProductSelect(products);
   });
 
@@ -157,9 +159,13 @@
     ).join('');
   }
 
-  function productName(id) {
-    const p = products.find(p => p.product_id === id);
-    return p ? p.name : id;
+  function productCell(id) {
+    const p = productMap[id];
+    const name = p ? p.name : id;
+    const img = p && p.image_url
+      ? `<img src="${escHtml(p.image_url)}" alt="" style="width:36px;height:36px;object-fit:contain;border-radius:4px;flex-shrink:0;">`
+      : `<div style="width:36px;height:36px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
+    return `<div class="d-flex align-items-center gap-2">${img}<span>${escHtml(name)}</span></div>`;
   }
 
   async function refreshItems(source) {
@@ -196,7 +202,7 @@
     document.getElementById('empty-state').classList.add('d-none');
     document.getElementById('items-tbody').innerHTML = items.map(t => `
       <tr>
-        <td class="ps-3 fw-medium">${escHtml(productName(t.product_id))}</td>
+        <td class="ps-3 fw-medium">${productCell(t.product_id)}</td>
         <td class="text-muted">${fmtDate(t.transaction_date)}</td>
         <td>
           <span class="badge ${t.transaction_type === 'buy' ? 'text-bg-success' : 'text-bg-warning'}">
