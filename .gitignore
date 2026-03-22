@@ -36,6 +36,9 @@ resources/_gen/
 firebase-config.js
 serviceAccountKey.json
 
+# Claude Code — local settings only; agents/ is intentionally committed
+.claude/settings.local.json
+
 # Editor/IDE
 .idea/
 .vscode/
