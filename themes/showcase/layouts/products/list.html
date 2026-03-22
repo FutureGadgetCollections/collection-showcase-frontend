@@ -116,9 +116,13 @@
           <input type="url" class="form-control" id="item-listing-url" placeholder="https://...">
         </div>
         <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
+        <div id="batch-indicator" class="alert alert-info py-2 small d-none mt-2">
+          <i class="bi bi-stack me-1"></i><span id="batch-count">0</span> queued — will all be saved together
+        </div>
       </div>
       <div class="modal-footer border-0 pt-0">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-outline-primary btn-sm d-none" id="modal-add-another-btn" onclick="addToBatch()">Add to Batch</button>
         <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
       </div>
     </div>
@@ -147,6 +151,9 @@
 <script>
   const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
   const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+  let productBatch = [];
+
+  document.getElementById('itemModal').addEventListener('hidden.bs.modal', () => { productBatch = []; });
 
   firebase.auth().onAuthStateChanged(async user => {
     if (!user) {
@@ -254,8 +261,7 @@
     `).join('');
   }
 
-  function openCreateModal() {
-    document.getElementById('modal-title').textContent = 'Add Product';
+  function resetProductForm() {
     document.getElementById('item-id').value = '';
     document.getElementById('item-name').value = '';
     document.getElementById('item-game').value = '';
@@ -267,8 +273,44 @@
     document.getElementById('modal-error').classList.add('d-none');
   }
 
+  function updateBatchIndicator() {
+    const n = productBatch.length;
+    const indicator = document.getElementById('batch-indicator');
+    const saveBtn = document.getElementById('modal-save-btn');
+    if (n > 0) {
+      document.getElementById('batch-count').textContent = n;
+      indicator.classList.remove('d-none');
+      saveBtn.textContent = `Save All (${n + 1})`;
+    } else {
+      indicator.classList.add('d-none');
+      saveBtn.textContent = 'Save';
+    }
+  }
+
+  function buildProductBody() {
+    return {
+      name: document.getElementById('item-name').value.trim(),
+      game_category: document.getElementById('item-game').value.trim() || null,
+      game_subcategory: document.getElementById('item-game-subcategory').value.trim() || null,
+      product_category: document.getElementById('item-product-category').value.trim() || null,
+      tcgplayer_id: document.getElementById('item-tcgplayer-id').value.trim() || null,
+      pricecharting_url: document.getElementById('item-pricecharting-url').value.trim() || null,
+      listing_url: document.getElementById('item-listing-url').value.trim() || null,
+    };
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Add Product';
+    productBatch = [];
+    resetProductForm();
+    updateBatchIndicator();
+    document.getElementById('modal-add-another-btn').classList.remove('d-none');
+  }
+
   function openEditModal(item) {
     document.getElementById('modal-title').textContent = 'Edit Product';
+    productBatch = [];
+    document.getElementById('modal-add-another-btn').classList.add('d-none');
     document.getElementById('item-id').value = item.product_id;
     document.getElementById('item-name').value = item.name;
     document.getElementById('item-game').value = item.game_category || '';
@@ -281,34 +323,47 @@
     itemModal.show();
   }
 
+  function addToBatch() {
+    const name = document.getElementById('item-name').value.trim();
+    const errEl = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
+    productBatch.push(buildProductBody());
+    resetProductForm();
+    updateBatchIndicator();
+  }
+
   async function saveItem() {
     const id   = document.getElementById('item-id').value;
     const name = document.getElementById('item-name').value.trim();
-    const game = document.getElementById('item-game').value.trim();
     const errEl = document.getElementById('modal-error');
     errEl.classList.add('d-none');
     if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
 
     const btn = document.getElementById('modal-save-btn');
+    const anotherBtn = document.getElementById('modal-add-another-btn');
     btn.disabled = true;
+    anotherBtn.disabled = true;
     try {
-      const body = {
-        name,
-        game_category: game || null,
-        game_subcategory: document.getElementById('item-game-subcategory').value.trim() || null,
-        product_category: document.getElementById('item-product-category').value.trim() || null,
-        tcgplayer_id: document.getElementById('item-tcgplayer-id').value.trim() || null,
-        pricecharting_url: document.getElementById('item-pricecharting-url').value.trim() || null,
-        listing_url: document.getElementById('item-listing-url').value.trim() || null,
-      };
-      if (id) { await api('PUT',  `/products/${id}`, body); }
-      else    { await api('POST', '/products', body); }
+      if (id) {
+        await api('PUT', `/products/${id}`, buildProductBody());
+      } else {
+        const all = [...productBatch, buildProductBody()];
+        if (all.length === 1) {
+          await api('POST', '/products', all[0]);
+        } else {
+          await api('POST', '/products/bulk', { products: all });
+        }
+      }
       itemModal.hide();
       await loadItems();
     } catch (e) {
       errEl.textContent = e.message;
       errEl.classList.remove('d-none');
-    } finally { btn.disabled = false; }
+    } finally {
+      btn.disabled = false;
+      anotherBtn.disabled = false;
+    }
   }
 
   let pendingDeleteId = null;

@@ -107,9 +107,13 @@
           </div>
         </div>
         <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
+        <div id="batch-indicator" class="alert alert-info py-2 small d-none mt-2">
+          <i class="bi bi-stack me-1"></i><span id="batch-count">0</span> queued — will all be saved together
+        </div>
       </div>
       <div class="modal-footer border-0 pt-0">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-outline-primary btn-sm d-none" id="modal-add-another-btn" onclick="addToBatch()">Add to Batch</button>
         <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
       </div>
     </div>
@@ -139,6 +143,9 @@
   const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
   let products = [];
   let productMap = {};
+  let transactionBatch = [];
+
+  document.getElementById('itemModal').addEventListener('hidden.bs.modal', () => { transactionBatch = []; });
 
   firebase.auth().onAuthStateChanged(async user => {
     if (!user) {
@@ -224,20 +231,57 @@
     `).join('');
   }
 
-  function openCreateModal() {
-    document.getElementById('modal-title').textContent = 'Log Transaction';
+  function resetTransactionForm(full = true) {
     document.getElementById('item-id').value = '';
-    document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('item-type').value = 'buy';
+    if (full) {
+      document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
+      document.getElementById('item-type').value = 'buy';
+      document.getElementById('platform').value = '';
+    }
     document.getElementById('item-qty').value = '';
     document.getElementById('item-price').value = '';
-    document.getElementById('platform').value = '';
     document.getElementById('notes').value = '';
     document.getElementById('modal-error').classList.add('d-none');
   }
 
+  function updateBatchIndicator() {
+    const n = transactionBatch.length;
+    const indicator = document.getElementById('batch-indicator');
+    const saveBtn = document.getElementById('modal-save-btn');
+    if (n > 0) {
+      document.getElementById('batch-count').textContent = n;
+      indicator.classList.remove('d-none');
+      saveBtn.textContent = `Save All (${n + 1})`;
+    } else {
+      indicator.classList.add('d-none');
+      saveBtn.textContent = 'Save';
+    }
+  }
+
+  function buildTransactionBody() {
+    return {
+      product_id: document.getElementById('item-product').value,
+      transaction_date: document.getElementById('item-date').value,
+      transaction_type: document.getElementById('item-type').value,
+      quantity: parseInt(document.getElementById('item-qty').value),
+      price: parseFloat(document.getElementById('item-price').value),
+      platform: document.getElementById('platform').value,
+      notes: document.getElementById('notes').value,
+    };
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Log Transaction';
+    transactionBatch = [];
+    resetTransactionForm(true);
+    updateBatchIndicator();
+    document.getElementById('modal-add-another-btn').classList.remove('d-none');
+  }
+
   function openEditModal(t) {
     document.getElementById('modal-title').textContent = 'Edit Transaction';
+    transactionBatch = [];
+    document.getElementById('modal-add-another-btn').classList.add('d-none');
     document.getElementById('item-id').value = t.transaction_id;
     document.getElementById('item-product').value = t.product_id;
     document.getElementById('item-date').value = t.transaction_date ? t.transaction_date.split('T')[0] : '';
@@ -250,11 +294,28 @@
     itemModal.show();
   }
 
+  function addToBatch() {
+    const product = document.getElementById('item-product').value;
+    const date    = document.getElementById('item-date').value;
+    const qty     = parseInt(document.getElementById('item-qty').value);
+    const price   = parseFloat(document.getElementById('item-price').value);
+    const errEl   = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+    if (!product || !date || isNaN(qty) || isNaN(price)) {
+      errEl.textContent = 'All fields are required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    transactionBatch.push(buildTransactionBody());
+    resetTransactionForm(false); // keep product, date, type, platform
+    updateBatchIndicator();
+    document.getElementById('item-qty').focus();
+  }
+
   async function saveItem() {
     const id      = document.getElementById('item-id').value;
     const product = document.getElementById('item-product').value;
     const date    = document.getElementById('item-date').value;
-    const type    = document.getElementById('item-type').value;
     const qty     = parseInt(document.getElementById('item-qty').value);
     const price   = parseFloat(document.getElementById('item-price').value);
     const errEl   = document.getElementById('modal-error');
@@ -266,21 +327,30 @@
       return;
     }
 
-    const platform = document.getElementById('platform').value;
-    const notes    = document.getElementById('notes').value;
-
     const btn = document.getElementById('modal-save-btn');
+    const anotherBtn = document.getElementById('modal-add-another-btn');
     btn.disabled = true;
+    anotherBtn.disabled = true;
     try {
-      const body = { product_id: product, transaction_date: date, transaction_type: type, quantity: qty, price, platform, notes };
-      if (id) { await api('PUT',  `/transactions/${id}`, body); }
-      else    { await api('POST', '/transactions', body); }
+      if (id) {
+        await api('PUT', `/transactions/${id}`, buildTransactionBody());
+      } else {
+        const all = [...transactionBatch, buildTransactionBody()];
+        if (all.length === 1) {
+          await api('POST', '/transactions', all[0]);
+        } else {
+          await api('POST', '/transactions/bulk', { transactions: all });
+        }
+      }
       itemModal.hide();
       await loadItems();
     } catch (e) {
       errEl.textContent = e.message;
       errEl.classList.remove('d-none');
-    } finally { btn.disabled = false; }
+    } finally {
+      btn.disabled = false;
+      anotherBtn.disabled = false;
+    }
   }
 
   let pendingDeleteId = null;
