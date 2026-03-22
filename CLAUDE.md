@@ -45,3 +45,11 @@ This is the **frontend** of the FutureGadgetCollections application — a Hugo-b
 - Firebase config (API key, project ID, etc.) goes in `.env` — never commit this file (already in `.gitignore`)
 - Keep Firebase credentials in environment variables; reference them in Hugo via a JS bundle or a separate config file excluded from git
 - The `.gitignore` is Go-flavored by origin — update it as needed for Hugo artifacts (e.g., `public/`, `resources/_gen/`)
+
+## Running the Dev Server
+
+**Always** start the server by sourcing `.env` first — Hugo does not auto-read `.env` files, so without this the Firebase config will be empty and login will fail:
+
+```bash
+set -a && source .env && set +a && hugo server
+```

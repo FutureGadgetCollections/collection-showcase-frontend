@@ -3,7 +3,7 @@
 async function loadFromGitHub(filename) {
   const { githubDataRepo } = window.DATA_CONFIG || {};
   if (!githubDataRepo) throw new Error('DATA_CONFIG.githubDataRepo is not set');
-  const url = `https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}?t=${Date.now()}`;
+  const url = `https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GitHub returned ${res.status} for ${filename}`);
   return res.json();
@@ -12,7 +12,7 @@ async function loadFromGitHub(filename) {
 async function loadFromGCS(filename) {
   const { gcsBucket } = window.DATA_CONFIG || {};
   if (!gcsBucket) throw new Error('DATA_CONFIG.gcsBucket is not set');
-  const url = `https://storage.googleapis.com/${gcsBucket}/${filename}?t=${Date.now()}`;
+  const url = `https://storage.googleapis.com/${gcsBucket}/${filename}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GCS returned ${res.status} for ${filename}`);
   return res.json();
