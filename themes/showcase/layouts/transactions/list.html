@@ -91,18 +91,19 @@
             </div>
           </div>
           <div class="col-sm-6">
-            <label class="form-label small fw-medium" for="item-platform">Platform</label>
-            <select class="form-select" id="item-platform">
-              <option value="">— optional —</option>
-              <option value="tcgplayer">TCGPlayer</option>
-              <option value="ebay">eBay</option>
-              <option value="facebook">Facebook</option>
-              <option value="local">Local</option>
+            <label class="form-label small fw-medium" for="platform">Platform</label>
+            <select class="form-select" id="platform" name="platform">
+              <option value=""></option>
+              <option value="TCGPlayer">TCGPlayer</option>
+              <option value="eBay">eBay</option>
+              <option value="LGS">LGS</option>
+              <option value="Trade">Trade</option>
+              <option value="Other">Other</option>
             </select>
           </div>
           <div class="col-sm-6">
-            <label class="form-label small fw-medium" for="item-notes">Notes</label>
-            <input type="text" class="form-control" id="item-notes" placeholder="optional">
+            <label class="form-label small fw-medium" for="notes">Notes</label>
+            <input type="text" class="form-control" id="notes" name="notes" placeholder="Notes (optional)">
           </div>
         </div>
         <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
@@ -223,8 +224,8 @@
     document.getElementById('item-type').value = 'buy';
     document.getElementById('item-qty').value = '';
     document.getElementById('item-price').value = '';
-    document.getElementById('item-platform').value = '';
-    document.getElementById('item-notes').value = '';
+    document.getElementById('platform').value = '';
+    document.getElementById('notes').value = '';
     document.getElementById('modal-error').classList.add('d-none');
   }
 
@@ -236,8 +237,8 @@
     document.getElementById('item-type').value = t.transaction_type;
     document.getElementById('item-qty').value = t.quantity;
     document.getElementById('item-price').value = t.price;
-    document.getElementById('item-platform').value = t.platform || '';
-    document.getElementById('item-notes').value = t.notes || '';
+    document.getElementById('platform').value = t.platform || '';
+    document.getElementById('notes').value = t.notes || '';
     document.getElementById('modal-error').classList.add('d-none');
     itemModal.show();
   }
@@ -258,8 +259,8 @@
       return;
     }
 
-    const platform = document.getElementById('item-platform').value;
-    const notes    = document.getElementById('item-notes').value;
+    const platform = document.getElementById('platform').value;
+    const notes    = document.getElementById('notes').value;
 
     const btn = document.getElementById('modal-save-btn');
     btn.disabled = true;
