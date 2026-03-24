@@ -97,11 +97,12 @@
 
   async function loadItems(source = 'github') {
     const loader = source === 'gcs' ? loadFromGCS : loadJsonData;
+    const tryLoad = async f => { try { return await loader(f); } catch { return null; } };
     try {
       const [items, portfolio, products] = await Promise.all([
-        loader('product-xirr.json'),
-        loader('portfolio-xirr.json'),
-        loader('products.json'),
+        tryLoad('product-xirr.json'),
+        tryLoad('portfolio-xirr.json'),
+        tryLoad('products.json'),
       ]);
       document.getElementById('loading').classList.add('d-none');
 
