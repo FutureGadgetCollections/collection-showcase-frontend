@@ -12,18 +12,12 @@
       <button class="btn btn-outline-secondary" onclick="refreshItems('gcs')">
         <i class="bi bi-cloud me-1"></i>GCS
       </button>
-      <button class="btn btn-outline-primary" onclick="refreshItems('api')">
-        <i class="bi bi-plug me-1"></i>API
-      </button>
     </div>
     <span class="badge text-bg-secondary" id="total-badge"></span>
   </div>
 </div>
-<p class="text-muted small mb-4">Current inventory — derived from all buy/sell transactions.</p>
+<p class="text-muted small mb-4">Current holdings and returns — derived from buy/sell transactions.</p>
 
-<div id="auth-guard" class="alert alert-warning d-none">
-  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view your collection.
-</div>
 <div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
@@ -34,26 +28,26 @@
 <div class="row g-3 mb-4 d-none" id="summary-row">
   <div class="col-6 col-md-3">
     <div class="card border-0 shadow-sm text-center py-3">
-      <div class="h4 mb-0 fw-bold text-primary" id="stat-items">—</div>
-      <div class="text-muted small mt-1">Distinct Items</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card border-0 shadow-sm text-center py-3">
-      <div class="h4 mb-0 fw-bold text-primary" id="stat-qty">—</div>
-      <div class="text-muted small mt-1">Total Quantity</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card border-0 shadow-sm text-center py-3">
       <div class="h4 mb-0 fw-bold text-primary" id="stat-invested">—</div>
       <div class="text-muted small mt-1">Total Invested</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card border-0 shadow-sm text-center py-3">
-      <div class="h4 mb-0 fw-bold text-primary" id="stat-avg">—</div>
-      <div class="text-muted small mt-1">Avg Unit Cost</div>
+      <div class="h4 mb-0 fw-bold" id="stat-total-pnl">—</div>
+      <div class="text-muted small mt-1">Total P&amp;L</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold" id="stat-realized-pnl">—</div>
+      <div class="text-muted small mt-1">Realized P&amp;L</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="h4 mb-0 fw-bold" id="stat-xirr">—</div>
+      <div class="text-muted small mt-1">Portfolio XIRR</div>
     </div>
   </div>
 </div>
@@ -65,9 +59,13 @@
         <thead class="table-light">
           <tr>
             <th class="ps-3">Product</th>
-            <th>Qty</th>
-            <th>Avg Unit Cost</th>
-            <th>Total Invested</th>
+            <th>Held</th>
+            <th>Sold</th>
+            <th>Invested</th>
+            <th>Realized P&amp;L</th>
+            <th>Unrealized P&amp;L</th>
+            <th>Total P&amp;L</th>
+            <th>XIRR</th>
           </tr>
         </thead>
         <tbody id="items-tbody"></tbody>
@@ -79,16 +77,16 @@
 
 {{ define "page-scripts" }}
 <script>
-  firebase.auth().onAuthStateChanged(async user => {
-    if (!user) {
-      document.getElementById('loading').classList.add('d-none');
-      document.getElementById('auth-guard').classList.remove('d-none');
-      return;
+  // Show admin controls if signed in
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('btn-sync').classList.remove('d-none');
+      document.getElementById('btn-refresh-group').classList.remove('d-none');
     }
-    document.getElementById('btn-sync').classList.remove('d-none');
-    document.getElementById('btn-refresh-group').classList.remove('d-none');
-    await loadItems();
   });
+
+  // Load data publicly — no auth required
+  loadItems();
 
   async function refreshItems(source) {
     const btns = document.querySelectorAll('#btn-refresh-group button');
@@ -98,51 +96,61 @@
   }
 
   async function loadItems(source = 'github') {
+    const loader = source === 'gcs' ? loadFromGCS : loadJsonData;
     try {
-      const loader = source === 'api' ? f => api('GET', '/' + f.replace('.json', ''))
-                   : source === 'gcs' ? loadFromGCS
-                   : loadJsonData;
-      const [items, products] = await Promise.all([
-        loader('collection.json'),
+      const [items, portfolio, products] = await Promise.all([
+        loader('product-xirr.json'),
+        loader('portfolio-xirr.json'),
         loader('products.json'),
       ]);
       document.getElementById('loading').classList.add('d-none');
 
       const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p]));
 
-      if (!items || items.length === 0) {
+      // Filter to items with any holdings or sales
+      const held = (items || []).filter(i => i.quantity_held > 0 || i.quantity_sold > 0);
+
+      if (held.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
         return;
       }
 
-      // Summary stats
-      const totalQty      = items.reduce((s, i) => s + i.quantity, 0);
-      const totalInvested = items.reduce((s, i) => s + i.total_invested, 0);
-      const avgCost       = totalInvested / totalQty;
-      document.getElementById('stat-items').textContent    = items.length;
-      document.getElementById('stat-qty').textContent      = totalQty;
-      document.getElementById('stat-invested').textContent = fmt$(totalInvested);
-      document.getElementById('stat-avg').textContent      = fmt$(avgCost);
+      document.getElementById('total-badge').textContent = held.length + ' items';
+
+      // Portfolio summary
+      const port = Array.isArray(portfolio) ? portfolio[0] : portfolio;
+      if (port) {
+        document.getElementById('stat-invested').textContent = fmt$(port.total_invested);
+        setpnl('stat-total-pnl', port.total_pnl);
+        setpnl('stat-realized-pnl', port.realized_pnl);
+        document.getElementById('stat-xirr').textContent = fmtXIRR(port.xirr);
+        document.getElementById('stat-xirr').className = 'h4 mb-0 fw-bold ' + pnlClass(port.xirr);
+      }
       document.getElementById('summary-row').classList.remove('d-none');
 
       document.getElementById('items-card').classList.remove('d-none');
-      document.getElementById('items-tbody').innerHTML = items.map(i => {
+      document.getElementById('items-tbody').innerHTML = held.map(i => {
         const p = productMap[i.product_id];
         const name = p ? p.name : i.product_id;
-        const img = p && p.image_url
-          ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;flex-shrink:0;">`
-          : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
+        const img = `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
         return `
         <tr>
           <td class="ps-3">
             <div class="d-flex align-items-center gap-2">
               ${img}
-              <span class="fw-medium">${escHtml(name)}</span>
+              <div>
+                <div class="fw-medium">${escHtml(name)}</div>
+                <div class="text-muted" style="font-size:0.75rem">${escHtml(i.product_id)}</div>
+              </div>
             </div>
           </td>
-          <td>${i.quantity}</td>
-          <td>${fmt$(i.avg_unit_cost)}</td>
+          <td>${i.quantity_held}</td>
+          <td>${i.quantity_sold}</td>
           <td>${fmt$(i.total_invested)}</td>
+          <td class="${pnlClass(i.realized_pnl)}">${fmt$(i.realized_pnl)}</td>
+          <td class="${pnlClass(i.unrealized_pnl)}">${i.unrealized_pnl != null ? fmt$(i.unrealized_pnl) : '<span class="text-muted">—</span>'}</td>
+          <td class="${pnlClass(i.total_pnl)}">${i.total_pnl != null ? fmt$(i.total_pnl) : '<span class="text-muted">—</span>'}</td>
+          <td class="${pnlClass(i.xirr)}">${fmtXIRR(i.xirr)}</td>
         </tr>`;
       }).join('');
     } catch (e) {
@@ -151,7 +159,14 @@
     }
   }
 
-  function fmt$(n) { return '$' + Number(n || 0).toFixed(2); }
+  function fmt$(n) { return n != null ? '$' + Number(n).toFixed(2) : '—'; }
+  function fmtXIRR(r) { return r != null ? (r * 100).toFixed(1) + '%' : '—'; }
+  function pnlClass(v) { return v == null ? '' : v >= 0 ? 'text-success' : 'text-danger'; }
+  function setpnl(id, v) {
+    const el = document.getElementById(id);
+    el.textContent = fmt$(v);
+    el.className = 'h4 mb-0 fw-bold ' + pnlClass(v);
+  }
   function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
 </script>
 {{ end }}
