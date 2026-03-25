@@ -60,12 +60,11 @@
           <tr>
             <th class="ps-3">Product</th>
             <th>Held</th>
-            <th>Sold</th>
             <th>Invested</th>
             <th>Realized P&amp;L</th>
             <th>Unrealized P&amp;L</th>
             <th>Total P&amp;L</th>
-            <th>XIRR</th>
+            <th>Ann. ROI</th>
           </tr>
         </thead>
         <tbody id="items-tbody"></tbody>
@@ -99,17 +98,14 @@
     const loader = source === 'gcs' ? loadFromGCS : loadJsonData;
     const tryLoad = async f => { try { return await loader(f); } catch { return null; } };
     try {
-      const [items, portfolio, products] = await Promise.all([
-        tryLoad('product-xirr.json'),
-        tryLoad('portfolio-xirr.json'),
+      const [items, products] = await Promise.all([
+        tryLoad('collection.json'),
         tryLoad('products.json'),
       ]);
       document.getElementById('loading').classList.add('d-none');
 
       const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p]));
-
-      // Filter to items with any holdings or sales
-      const held = (items || []).filter(i => i.quantity_held > 0 || i.quantity_sold > 0);
+      const held = (items || []).filter(i => i.quantity > 0);
 
       if (held.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
@@ -118,22 +114,31 @@
 
       document.getElementById('total-badge').textContent = held.length + ' items';
 
-      // Portfolio summary
-      const port = Array.isArray(portfolio) ? portfolio[0] : portfolio;
-      if (port) {
-        document.getElementById('stat-invested').textContent = fmt$(port.total_invested);
-        setpnl('stat-total-pnl', port.total_pnl);
-        setpnl('stat-realized-pnl', port.realized_pnl);
-        document.getElementById('stat-xirr').textContent = fmtXIRR(port.xirr);
-        document.getElementById('stat-xirr').className = 'h4 mb-0 fw-bold ' + pnlClass(port.xirr);
-      }
+      // Compute portfolio summary from items
+      const totalInvested  = held.reduce((s, i) => s + (i.total_invested  || 0), 0);
+      const realizedGain   = held.reduce((s, i) => s + (i.realized_gain   || 0), 0);
+      const unrealizedGain = held.reduce((s, i) => s + (i.unrealized_gain || 0), 0);
+      const totalPnl       = realizedGain + unrealizedGain;
+      document.getElementById('stat-invested').textContent = fmt$(totalInvested);
+      setpnl('stat-total-pnl',    totalPnl);
+      setpnl('stat-realized-pnl', realizedGain);
+      // Annualized ROI: weighted average by total_invested (only items with a value)
+      const weighted = held.filter(i => i.annualized_roi != null && i.total_invested > 0);
+      const xirr = weighted.length
+        ? weighted.reduce((s, i) => s + i.annualized_roi * i.total_invested, 0) / totalInvested
+        : null;
+      document.getElementById('stat-xirr').textContent = fmtXIRR(xirr);
+      document.getElementById('stat-xirr').className = 'h4 mb-0 fw-bold ' + pnlClass(xirr);
       document.getElementById('summary-row').classList.remove('d-none');
 
       document.getElementById('items-card').classList.remove('d-none');
       document.getElementById('items-tbody').innerHTML = held.map(i => {
         const p = productMap[i.product_id];
         const name = p ? p.name : i.product_id;
-        const img = `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
+        const img = p && p.image_url
+          ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;flex-shrink:0;">`
+          : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
+        const totalPnlItem = (i.realized_gain || 0) + (i.unrealized_gain || 0);
         return `
         <tr>
           <td class="ps-3">
@@ -141,17 +146,16 @@
               ${img}
               <div>
                 <div class="fw-medium">${escHtml(name)}</div>
-                <div class="text-muted" style="font-size:0.75rem">${escHtml(i.product_id)}</div>
+                <div class="text-muted" style="font-size:0.75rem">${escHtml(p ? (p.game_subcategory || p.game_category || '') : '')}</div>
               </div>
             </div>
           </td>
-          <td>${i.quantity_held}</td>
-          <td>${i.quantity_sold}</td>
+          <td>${i.quantity}</td>
           <td>${fmt$(i.total_invested)}</td>
-          <td class="${pnlClass(i.realized_pnl)}">${fmt$(i.realized_pnl)}</td>
-          <td class="${pnlClass(i.unrealized_pnl)}">${i.unrealized_pnl != null ? fmt$(i.unrealized_pnl) : '<span class="text-muted">—</span>'}</td>
-          <td class="${pnlClass(i.total_pnl)}">${i.total_pnl != null ? fmt$(i.total_pnl) : '<span class="text-muted">—</span>'}</td>
-          <td class="${pnlClass(i.xirr)}">${fmtXIRR(i.xirr)}</td>
+          <td class="${pnlClass(i.realized_gain)}">${fmt$(i.realized_gain)}</td>
+          <td class="${pnlClass(i.unrealized_gain)}">${i.unrealized_gain != null ? fmt$(i.unrealized_gain) : '<span class="text-muted">—</span>'}</td>
+          <td class="${pnlClass(totalPnlItem)}">${fmt$(totalPnlItem)}</td>
+          <td class="${pnlClass(i.annualized_roi)}">${fmtXIRR(i.annualized_roi)}</td>
         </tr>`;
       }).join('');
     } catch (e) {

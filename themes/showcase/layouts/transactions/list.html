@@ -2,9 +2,6 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Transactions</h2>
   <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)">
-      <i class="bi bi-cloud-upload me-1"></i>Sync
-    </button>
     <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
       <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
         <i class="bi bi-github me-1"></i>GitHub
@@ -22,9 +19,6 @@
   </div>
 </div>
 
-<div id="auth-guard" class="alert alert-warning d-none">
-  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view transactions.
-</div>
 <div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
@@ -147,18 +141,20 @@
 
   document.getElementById('itemModal').addEventListener('hidden.bs.modal', () => { transactionBatch = []; });
 
-  firebase.auth().onAuthStateChanged(async user => {
-    if (!user) {
-      document.getElementById('loading').classList.add('d-none');
-      document.getElementById('auth-guard').classList.remove('d-none');
-      return;
+  // Show admin controls if signed in
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('btn-refresh-group').classList.remove('d-none');
     }
-    document.getElementById('btn-refresh-group').classList.remove('d-none');
-    products = await loadJsonData('products.json');
+  });
+
+  // Load data publicly — no auth required
+  (async () => {
+    products = await loadJsonData('products.json').catch(() => []);
     productMap = Object.fromEntries(products.map(p => [p.product_id, p]));
     populateProductSelect(products);
     await loadItems();
-  });
+  })();
 
   function populateProductSelect(prods) {
     const sel = document.getElementById('item-product');
