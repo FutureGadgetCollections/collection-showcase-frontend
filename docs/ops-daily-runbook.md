@@ -2,6 +2,26 @@
 
 Daily health checks across all FutureGadgetLabs / FG-PolyLabs systems.
 
+## Automated Scripts
+
+Two scripts in `scripts/` automate the checks in this runbook:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/ops-check.sh` | Daily health check — jobs, GCS freshness, service health. Flags: `--jobs`, `--gcs`, `--services` (default: all). |
+| `scripts/post-deploy-check.sh <target>` | Post-deploy validation. Targets: `collection-showcase`, `collection-showcase-sync`, `weather-api`, `weather-sync`, `doomsday-api`, `doomsday-exporter`, `doomsday-polymarket`, `all`. |
+
+Run the daily check:
+```bash
+bash scripts/ops-check.sh
+```
+
+Run a post-deploy validation after deploying a service or job image:
+```bash
+bash scripts/post-deploy-check.sh collection-showcase
+bash scripts/post-deploy-check.sh collection-showcase-sync  # triggers a live sync run
+```
+
 ---
 
 ## Systems Overview
@@ -344,8 +364,8 @@ gcloud run jobs executions list --job=doomsday-exporter --region=us-central1 --l
 
 3. **GCS write confirmation** — Both sync jobs (`collection-showcase-data-sync`, `weather-sync`) should log the bytes written per file so you can verify non-empty output from the logs alone, without needing a separate `gcloud storage ls` step.
 
-4. **Weather GCS data gap** — As of 2026-03-24, `gs://fg-polylabs-weather-data/data/` is empty despite `weather-sync` showing a successful run. Investigate whether the sync job is writing to a different path or skipping the GCS step.
+4. ~~**Weather GCS data gap**~~ — **Resolved 2026-03-24.** Root cause: `weather-sync` had been redeployed at 03:39 UTC after the scheduled 03:00 run; the old image skipped GCS writes. Manually triggered with current image; 22 MB confirmed written to `gs://fg-polylabs-weather-data/data/`.
 
-5. **Store GitHub PAT as a Secret Manager secret** — The `DATA_SYNC_PAT` for `doomsday-api` is currently stored as a plain env var (visible in `gcloud run services describe`). Move it to [Secret Manager](https://cloud.google.com/secret-manager) and reference it via `--set-secrets` to avoid accidental exposure.
+5. ~~**Store GitHub PAT as a Secret Manager secret**~~ — **Resolved 2026-03-24.** All GitHub PATs (`DATA_SYNC_PAT`, `GITHUB_TOKEN`) migrated to Secret Manager in both `future-gadget-labs-483502` and `fg-polylabs`. Affected resources: `collection-showcase-data-sync` job, `collection-showcase` service, `weather-sync` job, `doomsday-api` service. Plain env var references removed.
 
 6. **Expected row counts** — For the BQ data freshness check, add a baseline of expected row counts per day (e.g., "at least N products priced"). Currently the runbook only checks `> 0`; a count anomaly could indicate a partial scrape.

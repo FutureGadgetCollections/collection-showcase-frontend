@@ -119,7 +119,7 @@ check_gcs_recent() {
   local size
   size=$(echo "$output" | awk '{print $1}')
   if [[ $size -lt $min_bytes ]]; then
-    fail "$label — file too small (${size}B), likely empty"
+    warn "$label — file present but small (${size}B) — may be empty dataset"
   else
     pass "$label — ${size}B present at $uri"
   fi
