@@ -78,7 +78,7 @@
             <input type="number" class="form-control" id="item-qty" min="1" placeholder="1">
           </div>
           <div class="col-sm-6">
-            <label class="form-label small fw-medium" for="item-price">Price <span class="text-danger">*</span></label>
+            <label class="form-label small fw-medium" for="item-price">Unit Price <span class="text-danger">*</span></label>
             <div class="input-group">
               <span class="input-group-text">$</span>
               <input type="number" class="form-control" id="item-price" min="0" step="0.01" placeholder="0.00">
@@ -214,7 +214,7 @@
           </span>
         </td>
         <td>${t.quantity}</td>
-        <td>$${Number(t.price).toFixed(2)}</td>
+        <td>$${Number(t.unit_price).toFixed(2)}</td>
         <td class="text-end pe-3">
           <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(t)})'>
             <i class="bi bi-pencil"></i>
@@ -260,7 +260,7 @@
       transaction_date: document.getElementById('item-date').value,
       transaction_type: document.getElementById('item-type').value,
       quantity: parseInt(document.getElementById('item-qty').value),
-      price: parseFloat(document.getElementById('item-price').value),
+      unit_price: parseFloat(document.getElementById('item-price').value),
       platform: document.getElementById('platform').value,
       notes: document.getElementById('notes').value,
     };
@@ -283,7 +283,7 @@
     document.getElementById('item-date').value = t.transaction_date ? t.transaction_date.split('T')[0] : '';
     document.getElementById('item-type').value = t.transaction_type;
     document.getElementById('item-qty').value = t.quantity;
-    document.getElementById('item-price').value = t.price;
+    document.getElementById('item-price').value = t.unit_price;
     document.getElementById('platform').value = t.platform || '';
     document.getElementById('notes').value = t.notes || '';
     document.getElementById('modal-error').classList.add('d-none');

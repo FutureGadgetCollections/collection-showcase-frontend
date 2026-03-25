@@ -10,12 +10,21 @@ All repos are siblings under the same parent directory. Run `setup.sh` from `col
 
 ## All Repositories
 
+### Showcase system (this site's data pipeline)
+
 | Repo | GitHub | Local Path | Purpose |
 |------|--------|-----------|---------|
 | Showcase frontend (this repo) | `FutureGadgetCollections/collection-showcase-frontend` | `../collection-showcase-frontend` | Public Hugo site — read-only, no auth |
-| Frontend admin | `FutureGadgetCollections/collection-market-tracker-frontend-admin` | `../collection-market-tracker-frontend-admin` | Hugo admin UI — CRUD via backend API |
-| Backend (Go / Cloud Run) | `FutureGadgetCollections/collection-market-tracker-backend` | `../collection-market-tracker-backend` | API microservice + scheduled Cloud Run jobs |
-| Data files (static JSON) | `FutureGadgetCollections/collection-market-tracker-data` | `../collection-market-tracker-data` | JSON published by backend; read by frontends |
+| Showcase backend | `FutureGadgetCollections/collection-showcase-backend` | `../collection-showcase-backend` | Go API (Cloud Run) — CRUD for products/transactions; data-sync job writes GCS + GitHub |
+| Showcase data | `FutureGadgetCollections/collection-showcase-data` | `../collection-showcase-data` | Static JSON (products, transactions, collection, price_history) — written by sync job, read by this site |
+
+### Market tracker system (shared BQ project)
+
+| Repo | GitHub | Local Path | Purpose |
+|------|--------|-----------|---------|
+| Market tracker frontend admin | `FutureGadgetCollections/collection-market-tracker-frontend-admin` | `../collection-market-tracker-frontend-admin` | Hugo admin UI — manages catalog products; CRUD via market-tracker backend API |
+| Market tracker backend | `FutureGadgetCollections/collection-market-tracker-backend` | `../collection-market-tracker-backend` | Go API + TCGPlayer price scraper (Cloud Run jobs) — writes `catalog.*`, `market_data.tcgplayer_price_history`, `inventory.transactions` |
+| Market tracker data | `FutureGadgetCollections/collection-market-tracker-data` | `../collection-market-tracker-data` | Static JSON published by market-tracker backend |
 
 ## GCP Infrastructure
 
