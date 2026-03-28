@@ -1,0 +1,493 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <a href="{{ "displays/" | relURL }}" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left me-1"></i>Displays
+    </a>
+    <span id="display-name" class="fw-semibold fs-5"></span>
+    <span id="display-type-badge" class="badge ms-2"></span>
+  </div>
+  <div class="d-flex gap-2" id="admin-controls" style="display:none!important">
+    <button class="btn btn-sm btn-outline-primary" id="btn-edit-items" onclick="toggleEditPanel()">
+      <i class="bi bi-pencil me-1"></i>Edit Items
+    </button>
+  </div>
+</div>
+
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+
+<!-- Public display area -->
+<div id="display-content" class="d-none">
+  <div id="display-description" class="text-muted small mb-3 d-none"></div>
+  <div id="display-render"></div>
+</div>
+
+<!-- Admin edit panel -->
+<div id="edit-panel" class="d-none mt-4">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-light d-flex align-items-center justify-content-between">
+      <span class="fw-semibold small">Edit Items</span>
+      <button class="btn btn-sm btn-primary" onclick="saveItems()">
+        <i class="bi bi-check-lg me-1"></i>Save
+      </button>
+    </div>
+    <div class="card-body p-0">
+      <div id="edit-items-list" class="list-group list-group-flush"></div>
+      <div class="p-3 border-top">
+        <button class="btn btn-sm btn-outline-secondary" onclick="openProductPicker()">
+          <i class="bi bi-plus-lg me-1"></i>Add Item
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Product Picker Modal -->
+<div class="modal fade" id="productPickerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Add Product</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-3" id="product-search" placeholder="Search by name, game, or set..." oninput="filterProducts()">
+        <div id="product-picker-list" style="max-height:380px;overflow-y:auto">
+          <div class="text-center text-muted small py-3">Loading products...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Bookshelf layout */
+.shelf-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px 8px 16px;
+  border-bottom: 4px solid #6c757d;
+  margin-bottom: 16px;
+  background: linear-gradient(to bottom, #f8f5f0 0%, #e8dcc8 100%);
+  border-radius: 4px 4px 0 0;
+}
+.shelf-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 50px;
+  max-width: 70px;
+  flex-shrink: 0;
+  position: relative;
+}
+.shelf-item img {
+  width: 50px;
+  height: 70px;
+  object-fit: contain;
+  border-radius: 3px;
+  box-shadow: 1px 2px 4px rgba(0,0,0,0.15);
+}
+.shelf-item .shelf-qty {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  font-size: 0.6rem;
+  background: #dc3545;
+  color: #fff;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font-weight: bold;
+}
+.shelf-item .shelf-name {
+  font-size: 0.6rem;
+  text-align: center;
+  color: #495057;
+  margin-top: 3px;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shelf-item .shelf-img-placeholder {
+  width: 50px;
+  height: 70px;
+  background: #dee2e6;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Bin layout */
+.bin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  background: #f8f9fa;
+  border: 2px solid #ced4da;
+  border-radius: 8px;
+  padding: 12px;
+}
+.bin-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.bin-item img {
+  width: 70px;
+  height: 98px;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.bin-item .bin-qty {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  font-size: 0.65rem;
+  background: #dc3545;
+  color: #fff;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font-weight: bold;
+}
+.bin-item .bin-name {
+  font-size: 0.65rem;
+  text-align: center;
+  color: #495057;
+  margin-top: 4px;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bin-item .bin-img-placeholder {
+  width: 70px;
+  height: 98px;
+  background: #dee2e6;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Edit panel */
+.edit-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.edit-item-row img {
+  width: 32px;
+  height: 45px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.product-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.product-picker-item:hover { background: #e7f1ff; }
+.product-picker-item img { width: 36px; height: 50px; object-fit: contain; border-radius: 3px; }
+.product-picker-item .pp-info { flex: 1; min-width: 0; }
+.product-picker-item .pp-name { font-size: 0.85rem; font-weight: 500; }
+.product-picker-item .pp-meta { font-size: 0.75rem; color: #6c757d; }
+</style>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+let displayId = null;
+let displayData = null;
+let editItems = [];   // current working list for the edit panel
+let allProducts = []; // for product picker
+let productPickerModal = null;
+let isAdmin = false;
+let editPanelOpen = false;
+
+function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+
+(async function init() {
+  const params = new URLSearchParams(window.location.search);
+  displayId = params.get('id');
+  if (!displayId) {
+    document.getElementById('loading').innerHTML = '<p class="text-danger">No display ID specified.</p>';
+    return;
+  }
+  productPickerModal = new bootstrap.Modal(document.getElementById('productPickerModal'));
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (user && isEmailAllowed(user.email)) {
+      isAdmin = true;
+      document.getElementById('admin-controls').style.removeProperty('display');
+    }
+  });
+
+  await loadDisplay();
+  loadProducts();
+})();
+
+async function loadDisplay() {
+  try {
+    displayData = await loadJsonData(`displays/${displayId}.json`);
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('display-content').classList.remove('d-none');
+
+    document.getElementById('display-name').textContent = displayData.name || '';
+
+    const badge = document.getElementById('display-type-badge');
+    if (displayData.display_type === 'bin') {
+      badge.textContent = 'Bin';
+      badge.className = 'badge bg-secondary ms-2';
+    } else {
+      badge.textContent = 'Bookshelf';
+      badge.className = 'badge bg-primary ms-2';
+    }
+
+    if (displayData.description) {
+      const desc = document.getElementById('display-description');
+      desc.textContent = displayData.description;
+      desc.classList.remove('d-none');
+    }
+
+    renderDisplay();
+  } catch (e) {
+    document.getElementById('loading').innerHTML = `<p class="text-danger">Failed to load display: ${escHtml(e.message)}</p>`;
+  }
+}
+
+async function loadDisplayFromApi() {
+  try {
+    const raw = await api('GET', `/displays/${displayId}`);
+    // API returns items with display_id etc — map to display detail shape
+    displayData = {
+      display_id:   raw.display_id,
+      name:         raw.name,
+      display_type: raw.display_type,
+      description:  raw.description,
+      created_at:   raw.created_at,
+      items: (raw.items || []).map(i => ({
+        position:         i.position,
+        product_id:       i.product_id,
+        quantity:         i.quantity,
+        notes:            i.notes || '',
+        product_name:     i.product_name || '',
+        image_url:        i.image_url || '',
+        game_category:    i.game_category || '',
+        game_subcategory: i.game_subcategory || '',
+        product_category: i.product_category || '',
+      })),
+    };
+    renderDisplay();
+  } catch (e) {
+    showToast('Failed to reload display: ' + e.message, 'danger');
+  }
+}
+
+function renderDisplay() {
+  const items = displayData.items || [];
+  const type = displayData.display_type || 'bookshelf';
+  const container = document.getElementById('display-render');
+
+  if (items.length === 0) {
+    container.innerHTML = '<p class="text-muted py-3">No items in this display yet.</p>';
+    return;
+  }
+
+  if (type === 'bookshelf') {
+    renderBookshelf(container, items);
+  } else {
+    renderBin(container, items);
+  }
+}
+
+function renderBookshelf(container, items) {
+  const ROW_SIZE = 8;
+  let html = '';
+  for (let i = 0; i < items.length; i += ROW_SIZE) {
+    const rowItems = items.slice(i, i + ROW_SIZE);
+    html += `<div class="shelf-row">` + rowItems.map(item => {
+      const name = item.product_name || item.product_id || '';
+      return `<div class="shelf-item">
+        ${item.quantity > 1 ? `<span class="shelf-qty">×${item.quantity}</span>` : ''}
+        ${item.image_url
+          ? `<img src="${escHtml(item.image_url)}" alt="${escHtml(name)}" title="${escHtml(name)}">`
+          : `<div class="shelf-img-placeholder"><i class="bi bi-image text-muted"></i></div>`}
+        <div class="shelf-name" title="${escHtml(name)}">${escHtml(name)}</div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderBin(container, items) {
+  container.innerHTML = `<div class="bin-grid">` + items.map(item => {
+    const name = item.product_name || item.product_id || '';
+    return `<div class="bin-item">
+      ${item.quantity > 1 ? `<span class="bin-qty">×${item.quantity}</span>` : ''}
+      ${item.image_url
+        ? `<img src="${escHtml(item.image_url)}" alt="${escHtml(name)}" title="${escHtml(name)}">`
+        : `<div class="bin-img-placeholder"><i class="bi bi-image text-muted fs-4"></i></div>`}
+      <div class="bin-name" title="${escHtml(name)}">${escHtml(name)}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+// ── Edit panel ────────────────────────────────────────────────────────────────
+
+function toggleEditPanel() {
+  editPanelOpen = !editPanelOpen;
+  const panel = document.getElementById('edit-panel');
+  const btn = document.getElementById('btn-edit-items');
+  if (editPanelOpen) {
+    editItems = (displayData.items || []).map((item, idx) => ({ ...item, _idx: idx }));
+    panel.classList.remove('d-none');
+    btn.innerHTML = '<i class="bi bi-x me-1"></i>Close Edit';
+    renderEditList();
+  } else {
+    panel.classList.add('d-none');
+    btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit Items';
+  }
+}
+
+function renderEditList() {
+  const list = document.getElementById('edit-items-list');
+  if (editItems.length === 0) {
+    list.innerHTML = '<div class="p-3 text-muted small">No items. Add some below.</div>';
+    return;
+  }
+  list.innerHTML = editItems.map((item, idx) => {
+    const name = item.product_name || item.product_id || '';
+    return `<div class="list-group-item edit-item-row">
+      <div class="d-flex gap-1 me-2">
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="moveItem(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>
+          <i class="bi bi-chevron-up"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="moveItem(${idx}, 1)" ${idx === editItems.length - 1 ? 'disabled' : ''}>
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      ${item.image_url
+        ? `<img src="${escHtml(item.image_url)}" alt="">`
+        : `<div style="width:32px;height:45px;background:#f0f0f0;border-radius:3px;flex-shrink:0"></div>`}
+      <div class="flex-grow-1 min-width-0">
+        <div class="small fw-medium">${escHtml(name)}</div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <label class="small text-muted mb-0">Qty:</label>
+          <input type="number" class="form-control form-control-sm" style="width:65px"
+            value="${item.quantity || 1}" min="1"
+            onchange="editItems[${idx}].quantity = parseInt(this.value,10)||1">
+          <input type="text" class="form-control form-control-sm" style="width:120px"
+            placeholder="Notes" value="${escHtml(item.notes || '')}"
+            oninput="editItems[${idx}].notes = this.value">
+        </div>
+      </div>
+      <button class="btn btn-sm btn-outline-danger ms-auto" onclick="removeEditItem(${idx})">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function moveItem(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= editItems.length) return;
+  [editItems[idx], editItems[newIdx]] = [editItems[newIdx], editItems[idx]];
+  renderEditList();
+}
+
+function removeEditItem(idx) {
+  editItems.splice(idx, 1);
+  renderEditList();
+}
+
+async function saveItems() {
+  const btn = document.querySelector('#edit-panel .btn-primary');
+  btn.disabled = true;
+  try {
+    const items = editItems.map((item, idx) => ({
+      position:   idx + 1,
+      product_id: item.product_id,
+      quantity:   item.quantity || 1,
+      notes:      item.notes || '',
+    }));
+    await api('PUT', `/displays/${displayId}/items`, { items });
+    await loadDisplayFromApi();
+    renderEditList();
+    showToast('Items saved!', 'success');
+  } catch (e) {
+    showToast('Save failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Product picker ────────────────────────────────────────────────────────────
+
+async function loadProducts() {
+  try {
+    allProducts = await loadJsonData('products.json');
+  } catch (e) {
+    allProducts = [];
+  }
+}
+
+function openProductPicker() {
+  document.getElementById('product-search').value = '';
+  filterProducts();
+  productPickerModal.show();
+}
+
+function filterProducts() {
+  const q = document.getElementById('product-search').value.toLowerCase().trim();
+  const list = document.getElementById('product-picker-list');
+  if (allProducts.length === 0) {
+    list.innerHTML = '<p class="text-muted small text-center py-3">Products not loaded.</p>';
+    return;
+  }
+  const filtered = q
+    ? allProducts.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.game_category || '').toLowerCase().includes(q) ||
+        (p.game_subcategory || '').toLowerCase().includes(q)
+      ).slice(0, 50)
+    : allProducts.slice(0, 50);
+
+  list.innerHTML = filtered.map(p => `
+    <div class="product-picker-item" onclick="addProductToEdit(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+      ${p.image_url
+        ? `<img src="${escHtml(p.image_url)}" alt="">`
+        : `<div style="width:36px;height:50px;background:#f0f0f0;border-radius:3px"></div>`}
+      <div class="pp-info">
+        <div class="pp-name">${escHtml(p.name || p.product_id)}</div>
+        <div class="pp-meta">${escHtml(p.game_category || '')}${p.game_subcategory ? ' · ' + escHtml(p.game_subcategory) : ''}</div>
+      </div>
+    </div>
+  `).join('') || '<p class="text-muted small text-center py-3">No results.</p>';
+}
+
+function addProductToEdit(product) {
+  editItems.push({
+    product_id:       product.product_id,
+    product_name:     product.name || '',
+    image_url:        product.image_url || '',
+    quantity:         1,
+    notes:            '',
+    game_category:    product.game_category || '',
+    game_subcategory: product.game_subcategory || '',
+    product_category: product.product_category || '',
+  });
+  productPickerModal.hide();
+  renderEditList();
+}
+</script>
+{{ end }}

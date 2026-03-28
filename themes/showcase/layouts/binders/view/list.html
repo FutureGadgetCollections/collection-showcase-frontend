@@ -1,0 +1,558 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <a href="{{ "binders/" | relURL }}" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left me-1"></i>Binders
+    </a>
+    <span id="binder-name" class="fw-semibold fs-5"></span>
+  </div>
+  <div class="d-flex gap-2" id="admin-controls" style="display:none!important">
+    <button class="btn btn-sm btn-outline-secondary" id="btn-add-page" onclick="addPage()">
+      <i class="bi bi-plus-lg me-1"></i>Add Page
+    </button>
+    <button class="btn btn-sm btn-outline-danger" id="btn-remove-page" onclick="removeLastPage()">
+      <i class="bi bi-dash-lg me-1"></i>Remove Last Page
+    </button>
+    <button class="btn btn-sm btn-outline-primary" id="btn-edit-page" onclick="toggleEditMode()">
+      <i class="bi bi-pencil me-1"></i>Edit Page
+    </button>
+    <button class="btn btn-sm btn-primary d-none" id="btn-save-page" onclick="savePage()">
+      <i class="bi bi-check-lg me-1"></i>Save Page
+    </button>
+  </div>
+</div>
+
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="binder-content" class="d-none">
+  <!-- Page navigation -->
+  <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
+    <button class="btn btn-outline-secondary btn-sm" id="btn-prev" onclick="navigate(-1)" disabled>
+      <i class="bi bi-chevron-left"></i>
+    </button>
+    <span class="text-muted small" id="page-indicator">Page 1 of 1</span>
+    <button class="btn btn-outline-secondary btn-sm" id="btn-next" onclick="navigate(1)" disabled>
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+
+  <!-- Page spread: front + back -->
+  <div id="spread-wrapper" style="overflow:hidden">
+    <div id="page-spread" class="row g-3">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-light py-2">
+            <span class="small fw-semibold text-muted"><i class="bi bi-front me-1"></i>Front</span>
+          </div>
+          <div class="card-body p-2">
+            <div id="front-grid" class="binder-grid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-light py-2">
+            <span class="small fw-semibold text-muted"><i class="bi bi-back me-1"></i>Back</span>
+          </div>
+          <div class="card-body p-2">
+            <div id="back-grid" class="binder-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Card Picker Modal -->
+<div class="modal fade" id="cardPickerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Pick a Card</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-3" id="card-search" placeholder="Search by name, set code, or card number..." oninput="filterCatalog()">
+        <div id="card-picker-list" style="max-height:380px;overflow-y:auto">
+          <div class="text-center text-muted small py-3">Loading catalog...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.binder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.binder-slot {
+  aspect-ratio: 5/7;
+  border: 2px dashed #dee2e6;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #f8f9fa;
+  position: relative;
+  cursor: default;
+}
+.binder-slot.filled {
+  border-color: #ced4da;
+  background: #fff;
+}
+.binder-slot img {
+  width: 100%;
+  height: 70%;
+  object-fit: contain;
+}
+.binder-slot .slot-info {
+  font-size: 0.6rem;
+  text-align: center;
+  padding: 2px 4px;
+  line-height: 1.2;
+  color: #495057;
+}
+.binder-slot.edit-mode {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.binder-slot.edit-mode:hover {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+}
+.binder-slot .slot-num {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 0.55rem;
+  color: #adb5bd;
+}
+.binder-slot .slot-clear-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: none;
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 1px 4px;
+}
+.binder-slot.edit-mode.filled .slot-clear-btn {
+  display: block;
+}
+#page-spread {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+#page-spread.slide-out-left {
+  transform: translateX(-30px);
+  opacity: 0;
+}
+#page-spread.slide-in-right {
+  transform: translateX(30px);
+  opacity: 0;
+}
+.card-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.card-picker-item:hover { background: #e7f1ff; }
+.card-picker-item img { width: 36px; height: 50px; object-fit: contain; border-radius: 3px; }
+.card-picker-item .cp-info { flex: 1; min-width: 0; }
+.card-picker-item .cp-name { font-size: 0.85rem; font-weight: 500; }
+.card-picker-item .cp-meta { font-size: 0.75rem; color: #6c757d; }
+</style>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+const CATALOG_URL = 'https://raw.githubusercontent.com/FutureGadgetCollections/collection-market-tracker-data/main/data/single-cards.json';
+
+let binderId = null;
+let binderData = null;
+let currentPage = 0; // index into binderData.pages
+let isAdmin = false;
+let editMode = false;
+// editSlots[side][pos] = { card_game, card_set_code, card_number, card_notes } or null
+let editSlots = { front: {}, back: {} };
+let pickingSlot = null; // { side, pos }
+let catalog = [];
+let cardPickerModal = null;
+
+function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+
+(async function init() {
+  const params = new URLSearchParams(window.location.search);
+  binderId = params.get('id');
+  if (!binderId) {
+    document.getElementById('loading').innerHTML = '<p class="text-danger">No binder ID specified.</p>';
+    return;
+  }
+  cardPickerModal = new bootstrap.Modal(document.getElementById('cardPickerModal'));
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (user && isEmailAllowed(user.email)) {
+      isAdmin = true;
+      document.getElementById('admin-controls').style.removeProperty('display');
+    }
+  });
+
+  await loadBinder();
+
+  // Pre-load catalog in background
+  loadCatalog();
+})();
+
+async function loadBinder() {
+  try {
+    binderData = await loadJsonData(`binders/${binderId}.json`);
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('binder-content').classList.remove('d-none');
+    document.getElementById('binder-name').textContent = binderData.name || '';
+    currentPage = 0;
+    renderPage();
+  } catch (e) {
+    document.getElementById('loading').innerHTML = `<p class="text-danger">Failed to load binder: ${escHtml(e.message)}</p>`;
+  }
+}
+
+async function loadBinderFromApi() {
+  try {
+    binderData = await api('GET', `/binders/${binderId}`);
+    // API returns flat slots array — convert to pages structure
+    binderData = convertApiResponseToPages(binderData);
+    document.getElementById('binder-name').textContent = binderData.name || '';
+    renderPage();
+  } catch (e) {
+    showToast('Failed to reload binder: ' + e.message, 'danger');
+  }
+}
+
+function convertApiResponseToPages(apiResp) {
+  const slotsPerPage = apiResp.slots_per_page || 9;
+  const slots = apiResp.slots || [];
+  const pageMap = {};
+  for (const s of slots) {
+    if (!pageMap[s.page_number]) pageMap[s.page_number] = { front: [], back: [] };
+    const side = s.side || 'front';
+    if (!pageMap[s.page_number][side]) pageMap[s.page_number][side] = [];
+    pageMap[s.page_number][side].push(s);
+  }
+  const pageNums = Object.keys(pageMap).map(Number).sort((a,b) => a-b);
+  const pages = pageNums.map(pn => {
+    const front = buildSide(pageMap[pn].front || [], slotsPerPage);
+    const back = buildSide(pageMap[pn].back || [], slotsPerPage);
+    return { page_number: pn, front, back };
+  });
+  return { ...apiResp, pages };
+}
+
+function buildSide(rows, slotsPerPage) {
+  const byPos = {};
+  for (const r of rows) byPos[r.slot_position] = r;
+  const out = [];
+  for (let i = 1; i <= slotsPerPage; i++) {
+    const r = byPos[i];
+    if (!r || (!r.card_game && !r.card_set_code && !r.card_number)) {
+      out.push({ slot_position: i, empty: true });
+    } else {
+      const imgURL = r.image_url || '';
+      out.push({ slot_position: i, card_game: r.card_game, card_set_code: r.card_set_code, card_number: r.card_number, card_notes: r.card_notes || '', image_url: imgURL, empty: false });
+    }
+  }
+  return out;
+}
+
+function renderPage() {
+  const pages = binderData.pages || [];
+  const total = pages.length;
+  const pg = pages[currentPage] || null;
+
+  document.getElementById('page-indicator').textContent = total === 0
+    ? 'No pages'
+    : `Page ${currentPage + 1} of ${total}`;
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+  document.getElementById('btn-next').disabled = currentPage >= total - 1;
+  document.getElementById('btn-remove-page').disabled = total === 0;
+
+  const slotsPerPage = binderData.slots_per_page || 9;
+
+  if (!pg) {
+    document.getElementById('front-grid').innerHTML = '<p class="text-muted small p-2">No pages.</p>';
+    document.getElementById('back-grid').innerHTML = '';
+    return;
+  }
+
+  renderSide('front-grid', pg.front || [], slotsPerPage, 'front');
+  renderSide('back-grid', pg.back || [], slotsPerPage, 'back');
+}
+
+function renderSide(containerId, slots, slotsPerPage, side) {
+  // Fill to slotsPerPage
+  const byPos = {};
+  for (const s of slots) byPos[s.slot_position] = s;
+
+  let html = '';
+  for (let i = 1; i <= slotsPerPage; i++) {
+    const s = byPos[i] || { slot_position: i, empty: true };
+    html += renderSlot(s, side, i);
+  }
+  document.getElementById(containerId).innerHTML = html;
+}
+
+function renderSlot(s, side, pos) {
+  const editClass = editMode ? ' edit-mode' : '';
+  const filledClass = !s.empty ? ' filled' : '';
+  const clickAttr = editMode ? `onclick="openCardPicker('${side}', ${pos})"` : '';
+
+  let inner = `<span class="slot-num">${pos}</span>`;
+
+  if (editMode) {
+    // Check editSlots override
+    const override = editSlots[side] && editSlots[side][pos];
+    if (override === null) {
+      // explicitly cleared
+      inner += `<i class="bi bi-plus text-muted" style="font-size:1.2rem"></i>`;
+      return `<div class="binder-slot${editClass}" ${clickAttr}>${inner}</div>`;
+    }
+    if (override) {
+      const imgURL = getImageUrl(override);
+      return `<div class="binder-slot${editClass} filled" ${clickAttr}>
+        ${inner}
+        <button class="btn btn-sm btn-light slot-clear-btn" onclick="clearSlot(event,'${side}',${pos})">
+          <i class="bi bi-x"></i>
+        </button>
+        ${imgURL ? `<img src="${escHtml(imgURL)}" alt="">` : `<i class="bi bi-image text-muted"></i>`}
+        <div class="slot-info">${escHtml(override.card_number)}</div>
+      </div>`;
+    }
+  }
+
+  if (s.empty) {
+    if (editMode) {
+      return `<div class="binder-slot${editClass}" ${clickAttr}>${inner}<i class="bi bi-plus text-muted" style="font-size:1.2rem"></i></div>`;
+    }
+    return `<div class="binder-slot">${inner}</div>`;
+  }
+
+  const clearBtn = editMode ? `<button class="btn btn-sm btn-light slot-clear-btn" onclick="clearSlot(event,'${side}',${pos})"><i class="bi bi-x"></i></button>` : '';
+  return `<div class="binder-slot${editClass}${filledClass}" ${clickAttr}>
+    ${inner}
+    ${clearBtn}
+    ${s.image_url ? `<img src="${escHtml(s.image_url)}" alt="">` : `<i class="bi bi-image text-muted fs-4"></i>`}
+    <div class="slot-info">
+      ${s.card_number ? escHtml(s.card_number) : ''}
+      ${s.card_notes ? `<br>${escHtml(s.card_notes)}` : ''}
+    </div>
+  </div>`;
+}
+
+function getImageUrl(card) {
+  if (!card) return '';
+  if (card.image_url) return card.image_url;
+  if (card.tcgplayer_id) return `https://tcgplayer-cdn.tcgplayer.com/product/${card.tcgplayer_id}_in_1000x1000.jpg`;
+  return '';
+}
+
+function navigate(dir) {
+  const spread = document.getElementById('page-spread');
+  const outClass = dir > 0 ? 'slide-out-left' : 'slide-in-right';
+  const inClass  = dir > 0 ? 'slide-in-right'  : 'slide-out-left';
+
+  spread.classList.add(outClass);
+  setTimeout(() => {
+    currentPage += dir;
+    exitEditMode();
+    renderPage();
+    spread.classList.remove(outClass);
+    spread.classList.add(inClass);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        spread.classList.remove(inClass);
+      });
+    });
+  }, 250);
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  const editBtn = document.getElementById('btn-edit-page');
+  const saveBtn = document.getElementById('btn-save-page');
+  if (editMode) {
+    editSlots = { front: {}, back: {} };
+    editBtn.innerHTML = '<i class="bi bi-x me-1"></i>Cancel Edit';
+    editBtn.classList.replace('btn-outline-primary', 'btn-outline-secondary');
+    saveBtn.classList.remove('d-none');
+  } else {
+    exitEditMode();
+    return;
+  }
+  renderPage();
+}
+
+function exitEditMode() {
+  editMode = false;
+  editSlots = { front: {}, back: {} };
+  const editBtn = document.getElementById('btn-edit-page');
+  const saveBtn = document.getElementById('btn-save-page');
+  editBtn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit Page';
+  editBtn.classList.replace('btn-outline-secondary', 'btn-outline-primary');
+  saveBtn.classList.add('d-none');
+}
+
+function clearSlot(event, side, pos) {
+  event.stopPropagation();
+  if (!editSlots[side]) editSlots[side] = {};
+  editSlots[side][pos] = null;
+  renderPage();
+}
+
+function openCardPicker(side, pos) {
+  pickingSlot = { side, pos };
+  document.getElementById('card-search').value = '';
+  filterCatalog();
+  cardPickerModal.show();
+}
+
+async function savePage() {
+  const pages = binderData.pages || [];
+  const pg = pages[currentPage];
+  if (!pg) return;
+
+  const pageNum = pg.page_number;
+  const slotsPerPage = binderData.slots_per_page || 9;
+  const slots = [];
+
+  for (const side of ['front', 'back']) {
+    const sideSlots = pg[side] || [];
+    const byPos = {};
+    for (const s of sideSlots) byPos[s.slot_position] = s;
+
+    for (let pos = 1; pos <= slotsPerPage; pos++) {
+      const override = editSlots[side] && editSlots[side].hasOwnProperty(pos) ? editSlots[side][pos] : undefined;
+      if (override === null) continue; // cleared
+      if (override !== undefined) {
+        slots.push({ side, slot_position: pos, card_game: override.card_game, card_set_code: override.card_set_code, card_number: override.card_number, card_notes: override.card_notes || '' });
+        continue;
+      }
+      const existing = byPos[pos];
+      if (existing && !existing.empty) {
+        slots.push({ side, slot_position: pos, card_game: existing.card_game, card_set_code: existing.card_set_code, card_number: existing.card_number, card_notes: existing.card_notes || '' });
+      }
+    }
+  }
+
+  const btn = document.getElementById('btn-save-page');
+  btn.disabled = true;
+  try {
+    await api('PUT', `/binders/${binderId}/pages/${pageNum}/slots`, { slots });
+    exitEditMode();
+    await loadBinderFromApi();
+    showToast('Page saved!', 'success');
+  } catch (e) {
+    showToast('Save failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function addPage() {
+  const btn = document.getElementById('btn-add-page');
+  btn.disabled = true;
+  try {
+    const resp = await api('POST', `/binders/${binderId}/pages`, {});
+    await loadBinderFromApi();
+    // Navigate to the new last page
+    currentPage = (binderData.pages || []).length - 1;
+    renderPage();
+    showToast(`Page ${resp.page_number} added!`, 'success');
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function removeLastPage() {
+  const pages = binderData.pages || [];
+  if (pages.length === 0) return;
+  const lastPage = pages[pages.length - 1].page_number;
+  const btn = document.getElementById('btn-remove-page');
+  btn.disabled = true;
+  try {
+    await api('DELETE', `/binders/${binderId}/pages/${lastPage}`);
+    await loadBinderFromApi();
+    if (currentPage >= (binderData.pages || []).length) {
+      currentPage = Math.max(0, (binderData.pages || []).length - 1);
+    }
+    renderPage();
+    showToast('Last page removed.', 'success');
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Catalog ──────────────────────────────────────────────────────────────────
+
+async function loadCatalog() {
+  try {
+    catalog = await fetch(CATALOG_URL).then(r => r.json());
+  } catch (e) {
+    catalog = [];
+  }
+}
+
+function filterCatalog() {
+  const q = document.getElementById('card-search').value.toLowerCase().trim();
+  const list = document.getElementById('card-picker-list');
+  if (catalog.length === 0) {
+    list.innerHTML = '<p class="text-muted small text-center py-3">Catalog not loaded.</p>';
+    return;
+  }
+  const filtered = q
+    ? catalog.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.card_number || '').toLowerCase().includes(q) ||
+        (c.set_code || '').toLowerCase().includes(q) ||
+        (c.game || '').toLowerCase().includes(q)
+      ).slice(0, 50)
+    : catalog.slice(0, 50);
+
+  list.innerHTML = filtered.map(c => {
+    const imgURL = c.tcgplayer_id ? `https://tcgplayer-cdn.tcgplayer.com/product/${c.tcgplayer_id}_in_1000x1000.jpg` : '';
+    return `<div class="card-picker-item" onclick="selectCard(${JSON.stringify(c).replace(/"/g, '&quot;')})">
+      ${imgURL ? `<img src="${escHtml(imgURL)}" alt="">` : `<div style="width:36px;height:50px;background:#f0f0f0;border-radius:3px"></div>`}
+      <div class="cp-info">
+        <div class="cp-name">${escHtml(c.name || c.card_number || '')}</div>
+        <div class="cp-meta">${escHtml(c.game || '')} &middot; ${escHtml(c.set_code || '')} &middot; #${escHtml(c.card_number || '')}</div>
+      </div>
+    </div>`;
+  }).join('') || '<p class="text-muted small text-center py-3">No results.</p>';
+}
+
+function selectCard(card) {
+  if (!pickingSlot) return;
+  const { side, pos } = pickingSlot;
+  if (!editSlots[side]) editSlots[side] = {};
+  editSlots[side][pos] = {
+    card_game:     card.game || '',
+    card_set_code: card.set_code || '',
+    card_number:   card.card_number || '',
+    card_notes:    '',
+    tcgplayer_id:  card.tcgplayer_id || '',
+    image_url:     card.tcgplayer_id ? `https://tcgplayer-cdn.tcgplayer.com/product/${card.tcgplayer_id}_in_1000x1000.jpg` : '',
+  };
+  cardPickerModal.hide();
+  pickingSlot = null;
+  renderPage();
+}
+</script>
+{{ end }}
