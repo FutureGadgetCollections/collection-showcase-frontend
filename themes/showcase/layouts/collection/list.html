@@ -60,6 +60,8 @@
           <tr>
             <th class="ps-3">Product</th>
             <th>Held</th>
+            <th>Avg Paid</th>
+            <th>Market</th>
             <th>Invested</th>
             <th>Realized P&amp;L</th>
             <th>Unrealized P&amp;L</th>
@@ -97,15 +99,27 @@
   async function loadItems(source = 'github') {
     const loader = source === 'gcs' ? loadFromGCS : loadJsonData;
     const tryLoad = async f => { try { return await loader(f); } catch { return null; } };
+    // Always fetch live prices from the market tracker data repo regardless of source
+    const MARKET_PRICES_URL = 'https://raw.githubusercontent.com/FutureGadgetCollections/collection-market-tracker-data/main/data/tcgplayer-latest-prices.json';
     try {
-      const [items, products] = await Promise.all([
+      const [items, products, livePrices] = await Promise.all([
         tryLoad('collection.json'),
         tryLoad('products.json'),
+        fetch(MARKET_PRICES_URL).then(r => r.ok ? r.json() : []).catch(() => []),
       ]);
+      const livePriceMap = Object.fromEntries((livePrices || []).map(p => [String(p.tcgplayer_id), p.market_price]));
       document.getElementById('loading').classList.add('d-none');
 
       const productMap = Object.fromEntries((products || []).map(p => [p.product_id, p]));
-      const held = (items || []).filter(i => i.quantity > 0);
+      // Enrich each item with live market price (keyed by tcgplayer_id via products)
+      const enrich = i => {
+        const p = productMap[i.product_id];
+        const livePrice = p && p.tcgplayer_id ? livePriceMap[String(p.tcgplayer_id)] : null;
+        const marketPrice = livePrice ?? i.latest_market_price;
+        const unrealizedGain = marketPrice != null ? (marketPrice - i.avg_unit_cost) * i.quantity : i.unrealized_gain;
+        return { ...i, marketPrice, unrealizedGain };
+      };
+      const held = (items || []).filter(i => i.quantity > 0).map(enrich);
 
       if (held.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
@@ -117,7 +131,7 @@
       // Compute portfolio summary from items
       const totalInvested  = held.reduce((s, i) => s + (i.total_invested  || 0), 0);
       const realizedGain   = held.reduce((s, i) => s + (i.realized_gain   || 0), 0);
-      const unrealizedGain = held.reduce((s, i) => s + (i.unrealized_gain || 0), 0);
+      const unrealizedGain = held.reduce((s, i) => s + (i.unrealizedGain  || 0), 0);
       const totalPnl       = realizedGain + unrealizedGain;
       document.getElementById('stat-invested').textContent = fmt$(totalInvested);
       setpnl('stat-total-pnl',    totalPnl);
@@ -138,7 +152,10 @@
         const img = p && p.image_url
           ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;flex-shrink:0;">`
           : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`;
-        const totalPnlItem = (i.realized_gain || 0) + (i.unrealized_gain || 0);
+        const totalPnlItem = (i.realized_gain || 0) + (i.unrealizedGain || 0);
+        const marketCell = i.marketPrice != null
+          ? `<span class="${pnlClass(i.marketPrice - i.avg_unit_cost)}">${fmt$(i.marketPrice)}</span>`
+          : '<span class="text-muted">—</span>';
         return `
         <tr>
           <td class="ps-3">
@@ -151,9 +168,11 @@
             </div>
           </td>
           <td>${i.quantity}</td>
+          <td>${fmt$(i.avg_unit_cost)}</td>
+          <td>${marketCell}</td>
           <td>${fmt$(i.total_invested)}</td>
           <td class="${pnlClass(i.realized_gain)}">${fmt$(i.realized_gain)}</td>
-          <td class="${pnlClass(i.unrealized_gain)}">${i.unrealized_gain != null ? fmt$(i.unrealized_gain) : '<span class="text-muted">—</span>'}</td>
+          <td class="${pnlClass(i.unrealizedGain)}">${i.unrealizedGain != null ? fmt$(i.unrealizedGain) : '<span class="text-muted">—</span>'}</td>
           <td class="${pnlClass(totalPnlItem)}">${fmt$(totalPnlItem)}</td>
           <td class="${pnlClass(i.annualized_roi)}">${fmtXIRR(i.annualized_roi)}</td>
         </tr>`;
