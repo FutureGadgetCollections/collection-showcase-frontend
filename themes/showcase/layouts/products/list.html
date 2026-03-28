@@ -22,12 +22,6 @@
   </div>
 </div>
 
-<div id="auth-guard" class="alert alert-warning d-none">
-  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage products.
-</div>
-<div id="admin-guard" class="alert alert-secondary d-none">
-  <i class="bi bi-shield-lock me-1"></i>You need to be an admin to go here.
-</div>
 <div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
@@ -155,21 +149,16 @@
 
   document.getElementById('itemModal').addEventListener('hidden.bs.modal', () => { productBatch = []; });
 
-  firebase.auth().onAuthStateChanged(async user => {
-    if (!user) {
-      document.getElementById('loading').classList.add('d-none');
-      document.getElementById('auth-guard').classList.remove('d-none');
-      return;
+  // Load data publicly — no auth required
+  loadItems();
+
+  // Show admin controls if signed in as admin
+  firebase.auth().onAuthStateChanged(user => {
+    if (user && isEmailAllowed(user.email)) {
+      document.getElementById('btn-sync').classList.remove('d-none');
+      document.getElementById('btn-add-product').classList.remove('d-none');
+      document.getElementById('btn-refresh-group').classList.remove('d-none');
     }
-    if (!isEmailAllowed(user.email)) {
-      document.getElementById('loading').classList.add('d-none');
-      document.getElementById('admin-guard').classList.remove('d-none');
-      return;
-    }
-    document.getElementById('btn-sync').classList.remove('d-none');
-    document.getElementById('btn-add-product').classList.remove('d-none');
-    document.getElementById('btn-refresh-group').classList.remove('d-none');
-    await loadItems();
   });
 
   let allItems = [];
