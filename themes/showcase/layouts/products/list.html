@@ -1,166 +1,401 @@
 {{ define "main" }}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-box me-2 text-primary"></i>Products</h2>
-  <div class="d-flex gap-2">
-    <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
-      <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
-        <i class="bi bi-github me-1"></i>GitHub
+</div>
+
+<!-- Step 1: Sealed vs Singles -->
+<div id="step-type" class="mb-4">
+  <h6 class="text-muted small fw-semibold text-uppercase mb-3">Choose product type</h6>
+  <div class="row g-3">
+    <div class="col-sm-6">
+      <button class="btn btn-outline-primary w-100 py-3 text-start" onclick="pickType('sealed')">
+        <i class="bi bi-box-seam fs-4 me-2 align-middle"></i>
+        <span class="fw-semibold">Sealed Products</span>
+        <div class="text-muted small mt-1">Booster boxes, ETBs, display boxes, etc.</div>
       </button>
-      <button class="btn btn-outline-secondary" onclick="refreshItems('gcs')">
-        <i class="bi bi-cloud me-1"></i>GCS
-      </button>
-      <button class="btn btn-outline-primary" onclick="refreshItems('api')">
-        <i class="bi bi-plug me-1"></i>API
+    </div>
+    <div class="col-sm-6">
+      <button class="btn btn-outline-info w-100 py-3 text-start" onclick="pickType('card')">
+        <i class="bi bi-collection fs-4 me-2 align-middle"></i>
+        <span class="fw-semibold">Single Cards</span>
+        <div class="text-muted small mt-1">Individual cards by set</div>
       </button>
     </div>
   </div>
 </div>
 
-<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
-<div id="empty-state" class="text-center py-5 d-none">
-  <i class="bi bi-inbox fs-1 text-muted"></i>
-  <p class="text-muted mt-2">No products found.</p>
+<!-- Step 2: Game -->
+<div id="step-game" class="mb-4 d-none">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="#" onclick="resetToType(); return false;">Type</a></li>
+      <li class="breadcrumb-item active" id="bc-type"></li>
+    </ol>
+  </nav>
+  <h6 class="text-muted small fw-semibold text-uppercase mb-3">Choose game</h6>
+  <div class="row g-3" id="game-cards"></div>
 </div>
 
-<!-- Filters -->
-<div class="card shadow-sm border-0 d-none mb-3" id="filters-card">
-  <div class="card-body py-2">
-    <div class="row g-2">
-      <div class="col-sm-3">
-        <select class="form-select form-select-sm" id="filter-type" onchange="applyFilters()">
-          <option value="">All Types</option>
-          <option value="sealed">Sealed</option>
-          <option value="card">Singles</option>
-        </select>
-      </div>
-      <div class="col-sm-3">
-        <select class="form-select form-select-sm" id="filter-game" onchange="applyFilters()">
-          <option value="">All Games</option>
-        </select>
-      </div>
-      <div class="col-sm-3">
-        <select class="form-select form-select-sm" id="filter-subcategory" onchange="applyFilters()">
-          <option value="">All Sets</option>
-        </select>
-      </div>
-      <div class="col-sm-3">
-        <input type="text" class="form-control form-control-sm" id="filter-search"
-               placeholder="Search by name…" oninput="applyFilters()">
+<!-- Step 3: Set -->
+<div id="step-set" class="mb-4 d-none">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="#" onclick="resetToType(); return false;">Type</a></li>
+      <li class="breadcrumb-item"><a href="#" onclick="resetToGame(); return false;" id="bc-type2"></a></li>
+      <li class="breadcrumb-item active" id="bc-game"></li>
+    </ol>
+  </nav>
+  <h6 class="text-muted small fw-semibold text-uppercase mb-3">Choose set</h6>
+  <div id="set-list"></div>
+</div>
+
+<!-- Step 4: Results -->
+<div id="step-results" class="d-none">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="#" onclick="resetToType(); return false;">Type</a></li>
+      <li class="breadcrumb-item"><a href="#" onclick="resetToGame(); return false;" id="bc-type3"></a></li>
+      <li class="breadcrumb-item"><a href="#" onclick="resetToSet(); return false;" id="bc-game2"></a></li>
+      <li class="breadcrumb-item active" id="bc-set"></li>
+    </ol>
+  </nav>
+  <div id="results-loading" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> Loading…</div>
+  <div id="results-count" class="text-muted small mb-2 d-none"></div>
+  <div class="card shadow-sm border-0 d-none" id="items-card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Product</th>
+              <th>Type</th>
+              <th class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody"></tbody>
+        </table>
       </div>
     </div>
   </div>
-</div>
-
-<div id="results-count" class="text-muted small mb-2 d-none"></div>
-
-<div class="card shadow-sm border-0 d-none" id="items-card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th class="ps-3">Product</th>
-            <th>Game</th>
-            <th>Set</th>
-            <th>Type</th>
-            <th class="text-end pe-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="items-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+  <div id="results-empty" class="text-center text-muted py-4 d-none">No products found for this set.</div>
 </div>
 {{ end }}
 
 {{ define "page-scripts" }}
 <script>
-  // Show admin controls if signed in as admin
-  firebase.auth().onAuthStateChanged(user => {
-    if (user && isEmailAllowed(user.email)) {
-      document.getElementById('btn-refresh-group').classList.remove('d-none');
-    }
-  });
+  // ── Hardcoded catalog ─────────────────────────────────────────────────────
+  const CATALOG = {
+    pokemon: {
+      label: 'Pok\u00e9mon',
+      icon: 'bi-lightning-charge',
+      eras: {
+        'Scarlet & Violet': [
+          {code:'sv10',label:'Supercharged'},
+          {code:'sv09',label:'Journey Together'},
+          {code:'sv8.5',label:'Prismatic Evolutions'},
+          {code:'sv08',label:'Surging Sparks'},
+          {code:'sv07',label:'Stellar Crown'},
+          {code:'sv6.5',label:'Shrouded Fable'},
+          {code:'sv06',label:'Twilight Masquerade'},
+          {code:'sv05',label:'Temporal Forces'},
+          {code:'sv4.5',label:'Paldean Fates'},
+          {code:'sv04',label:'Paradox Rift'},
+          {code:'sv03',label:'Obsidian Flames'},
+          {code:'sv3.5',label:'151'},
+          {code:'sv02',label:'Paldea Evolved'},
+          {code:'sv01',label:'Scarlet & Violet Base'},
+          {code:'svbb',label:'Black Bolt'},
+          {code:'svwf',label:'Wildforce'},
+        ],
+        'Sword & Shield': [
+          {code:'swsh12.5',label:'Crown Zenith'},
+          {code:'swsh12',label:'Silver Tempest'},
+          {code:'swsh11',label:'Lost Origin'},
+          {code:'swsh10.5',label:'Pok\u00e9mon GO'},
+          {code:'swsh10',label:'Astral Radiance'},
+          {code:'swsh09',label:'Brilliant Stars'},
+          {code:'swsh08',label:'Fusion Strike'},
+          {code:'swsh07',label:'Evolving Skies'},
+          {code:'swsh06',label:'Chilling Reign'},
+          {code:'swsh05',label:'Battle Styles'},
+          {code:'swsh04',label:'Vivid Voltage'},
+          {code:'swsh03',label:'Darkness Ablaze'},
+          {code:'swsh3.5',label:'Champions Path'},
+          {code:'swsh02',label:'Rebel Clash'},
+          {code:'swsh4.5',label:'Shining Fates'},
+          {code:'swsh7.5',label:'Celebrations'},
+          {code:'swsh01',label:'Sword & Shield Base'},
+        ],
+        'Sun & Moon': [
+          {code:'sm12',label:'Cosmic Eclipse'},{code:'sm11.5',label:'Hidden Fates'},
+          {code:'sm11',label:'Unified Minds'},{code:'sm10',label:'Unbroken Bonds'},
+          {code:'sm09',label:'Team Up'},{code:'sm9.5',label:'Detective Pikachu'},
+          {code:'sm08',label:'Lost Thunder'},{code:'sm07',label:'Celestial Storm'},
+          {code:'sm06',label:'Forbidden Light'},{code:'sm05',label:'Ultra Prism'},
+          {code:'sm04',label:'Crimson Invasion'},{code:'sm3.5',label:'Shining Legends'},
+          {code:'sm03',label:'Burning Shadows'},{code:'sm02',label:'Guardians Rising'},
+          {code:'sm01',label:'Sun & Moon Base'},
+        ],
+        'XY': [
+          {code:'xy12',label:'Evolutions'},{code:'xy11',label:'Steam Siege'},
+          {code:'xy10',label:'Fates Collide'},{code:'xy9.5',label:'Generations'},
+          {code:'xy9',label:'BREAKpoint'},{code:'xy8',label:'BREAKthrough'},
+          {code:'xy7',label:'Ancient Origins'},{code:'xy6',label:'Roaring Skies'},
+          {code:'xy5',label:'Primal Clash'},{code:'xy4',label:'Phantom Forces'},
+          {code:'xy3',label:'Furious Fists'},{code:'xy2',label:'Flashfire'},
+          {code:'xy1',label:'XY Base'},
+        ],
+        'Mega Evolutions': [
+          {code:'me01',label:'Mega Evolutions 01'},{code:'me02',label:'Mega Evolutions 02'},
+          {code:'me2.5',label:'Mega Evolutions 2.5'},
+        ],
+        'Black & White': [
+          {code:'bw11',label:'Legendary Treasures'},{code:'bw10',label:'Plasma Blast'},
+          {code:'bw9',label:'Plasma Freeze'},{code:'bw8',label:'Plasma Storm'},
+          {code:'bw7',label:'Boundaries Crossed'},{code:'bw6',label:'Dragons Exalted'},
+          {code:'bw5',label:'Dark Explorers'},{code:'bw4',label:'Next Destinies'},
+          {code:'bw3',label:'Noble Victories'},{code:'bw2',label:'Emerging Powers'},
+          {code:'bw1',label:'Black & White Base'},
+        ],
+        'HeartGold & SoulSilver': [
+          {code:'col1',label:'Call of Legends'},
+          {code:'hgss4',label:'Triumphant'},{code:'hgss3',label:'Undaunted'},
+          {code:'hgss2',label:'Unleashed'},{code:'hgss1',label:'HGSS Base'},
+        ],
+        'Platinum': [
+          {code:'pl4',label:'Arceus'},{code:'pl3',label:'Supreme Victors'},
+          {code:'pl2',label:'Rising Rivals'},{code:'pl1',label:'Platinum Base'},
+        ],
+        'Diamond & Pearl': [
+          {code:'dp7',label:'Stormfront'},{code:'dp6',label:'Legends Awakened'},
+          {code:'dp5',label:'Majestic Dawn'},{code:'dp4',label:'Great Encounters'},
+          {code:'dp3',label:'Secret Wonders'},{code:'dp2',label:'Mysterious Treasures'},
+          {code:'dp1',label:'Diamond & Pearl Base'},
+        ],
+        'EX': [
+          {code:'ex16',label:'Power Keepers'},{code:'ex15',label:'Dragon Frontiers'},
+          {code:'ex14',label:'Crystal Guardians'},{code:'ex13',label:'Holon Phantoms'},
+          {code:'ex12',label:'Legend Maker'},{code:'ex11',label:'Delta Species'},
+          {code:'ex10',label:'Unseen Forces'},{code:'ex9',label:'Emerald'},
+          {code:'ex8',label:'Deoxys'},{code:'ex7',label:'Team Rocket Returns'},
+          {code:'ex6',label:'FireRed & LeafGreen'},{code:'ex5',label:'Hidden Legends'},
+          {code:'ex4',label:'Team Magma vs Team Aqua'},{code:'ex3',label:'Dragon'},
+          {code:'ex2',label:'Sandstorm'},{code:'ex1',label:'Ruby & Sapphire'},
+        ],
+        'Neo': [
+          {code:'neo4',label:'Neo Destiny'},{code:'neo3',label:'Neo Revelation'},
+          {code:'neo2',label:'Neo Discovery'},{code:'neo1',label:'Neo Genesis'},
+        ],
+        'Base Set': [
+          {code:'ecard3',label:'Skyridge'},{code:'ecard2',label:'Aquapolis'},
+          {code:'ecard1',label:'Expedition'},
+          {code:'teamrocket',label:'Team Rocket'},{code:'gymchallenge',label:'Gym Challenge'},
+          {code:'gymheroes',label:'Gym Heroes'},{code:'fossil',label:'Fossil'},
+          {code:'jungle',label:'Jungle'},{code:'base2',label:'Base Set 2'},
+          {code:'base1',label:'Base Set'},
+        ],
+      }
+    },
+    'one-piece': {
+      label: 'One Piece',
+      icon: 'bi-trophy',
+      eras: {
+        'Main Series': [
+          {code:'op14',label:'OP-14'},{code:'op13',label:'OP-13'},{code:'op12',label:'OP-12'},
+          {code:'op11',label:'OP-11'},{code:'op10',label:'OP-10'},{code:'op09',label:'OP-09'},
+          {code:'op08',label:'OP-08'},{code:'op07',label:'OP-07'},{code:'op06',label:'OP-06'},
+          {code:'op05',label:'OP-05'},{code:'op04',label:'OP-04'},{code:'op03',label:'OP-03'},
+          {code:'op02',label:'OP-02'},{code:'op01',label:'OP-01'},
+        ],
+        'Extra Booster': [
+          {code:'eb03',label:'EB-03'},{code:'eb02',label:'EB-02'},{code:'eb01',label:'EB-01'},
+        ],
+        'Premium Booster': [
+          {code:'prb02',label:'PRB-02'},{code:'prb01',label:'PRB-01'},
+        ],
+      }
+    },
+    hololive: {
+      label: 'Hololive',
+      icon: 'bi-stars',
+      eras: {
+        'Main Series': [
+          {code:'hl06',label:'Ayakashi Vermilion'},
+          {code:'hl05',label:'Enchant Regalia'},
+          {code:'hl04',label:'Elite Spark'},
+          {code:'hl03',label:'Quintet Spectrum'},
+          {code:'hl02',label:'Blooming Radiance'},
+          {code:'hl01',label:'Curious Universe'},
+        ],
+      }
+    },
+    mtg: {
+      label: 'Magic: The Gathering',
+      icon: 'bi-gem',
+      eras: {
+        'Standard': [
+          {code:'tdm',label:'Tarkir: Dragonstorm'},{code:'dft',label:'Aetherdrift'},
+          {code:'fdn',label:'Foundations'},{code:'dsk',label:'Duskmourn'},
+          {code:'blb',label:'Bloomburrow'},{code:'otj',label:'Outlaws of Thunder Junction'},
+          {code:'mkm',label:'Murders at Karlov Manor'},{code:'lci',label:'Lost Caverns of Ixalan'},
+          {code:'woe',label:'Wilds of Eldraine'},{code:'mom',label:'March of the Machine'},
+          {code:'one',label:'Phyrexia: All Will Be One'},{code:'bro',label:'Brothers\' War'},
+          {code:'dmu',label:'Dominaria United'},{code:'snc',label:'Streets of New Capenna'},
+          {code:'neo',label:'Kamigawa: Neon Dynasty'},
+        ],
+        'Modern Horizons': [{code:'mh3',label:'Modern Horizons 3'}],
+        'Universes Beyond': [{code:'tla',label:'Universes Beyond: The Last Airbender'}],
+      }
+    },
+    'weiss-schwarz': {
+      label: 'Weiss Schwarz',
+      icon: 'bi-suit-heart',
+      eras: {
+        'English Edition': [
+          {code:'dandadan',label:'Dandadan'},{code:'makeine',label:'Makeine'},
+          {code:'girls-band-cry',label:'Girls Band Cry'},
+          {code:'mygo-avemujica',label:'MyGO!!!!! & Ave Mujica'},
+          {code:'blue-archive',label:'Blue Archive'},
+          {code:'frieren-v2',label:'Frieren Vol.2'},{code:'frieren-v1',label:'Frieren Vol.1'},
+          {code:'oshinoko-v2',label:'Oshi no Ko Vol.2'},{code:'oshinoko-v1',label:'Oshi no Ko Vol.1'},
+          {code:'chainsaw-man',label:'Chainsaw Man'},{code:'bocchi',label:'Bocchi the Rock!'},
+          {code:'nikke',label:'NIKKE'},{code:'mushoku-tensei',label:'Mushoku Tensei'},
+          {code:'lycoris-recoil',label:'Lycoris Recoil'},{code:'lycoris-premium',label:'Lycoris Recoil Premium'},
+          {code:'eminence-shadow',label:'Eminence in Shadow'},
+          {code:'konosuba-re',label:'Konosuba Re:'},
+          {code:'holo-ws-v2',label:'Hololive Vol.2'},{code:'holo-ws-v1',label:'Hololive Vol.1'},
+          {code:'holo-ws-premium',label:'Hololive Premium'},{code:'holo-ws-summer',label:'Hololive Summer'},
+          {code:'nazarick-v3',label:'Nazarick Vol.3'},
+          {code:'jojo-stone-ocean',label:'JoJo Stone Ocean'},{code:'jojo-stardust',label:'JoJo Stardust Crusaders'},
+          {code:'p3r-premium-v2',label:'Persona 3 Reload Premium Vol.2'},
+          {code:'p3r-premium-v1',label:'Persona 3 Reload Premium Vol.1'},
+          {code:'fairytail-100yq',label:'Fairy Tail 100 Years Quest'},
+          {code:'hatsune-miku-cs',label:'Hatsune Miku: Colorful Stage'},
+          {code:'fujimi-v2',label:'Fujimi Fantasia Vol.2'},
+          {code:'bdgp-5th-anniv',label:'BanG Dream! 5th Anniv'},
+          {code:'bdgp-countdown',label:'BanG Dream! Countdown'},
+          {code:'bdgp-premium',label:'BanG Dream! Premium'},
+        ],
+      }
+    },
+    riftbound: {
+      label: 'Riftbound',
+      icon: 'bi-wind',
+      eras: {
+        'Launch': [
+          {code:'rb03',label:'Set 03'},{code:'rb02',label:'Set 02'},{code:'rb01',label:'Set 01'},
+        ],
+        'Promo': [{code:'rb-promo-arcane',label:'Arcane Promo'}],
+      }
+    },
+  };
 
-  let allItems = [];
+  let currentType = null;
+  let currentGame = null;
+  let currentSet  = null;
 
-  // Load data publicly — no auth required
-  loadItems();
-
-  async function refreshItems(source) {
-    const btns = document.querySelectorAll('#btn-refresh-group button');
-    btns.forEach(b => b.disabled = true);
-    await loadItems(source);
-    btns.forEach(b => b.disabled = false);
+  function showStep(step) {
+    ['step-type','step-game','step-set','step-results'].forEach(id =>
+      document.getElementById(id).classList.add('d-none'));
+    document.getElementById(step).classList.remove('d-none');
   }
 
-  async function loadItems(source = 'github') {
-    try {
-      let items;
-      if (source === 'api') {
-        items = await api('GET', '/products');
-      } else if (source === 'gcs') {
-        items = await loadFromGCS('products.json');
-      } else {
-        items = await loadJsonData('products.json');
+  function resetToType() { currentType = currentGame = currentSet = null; showStep('step-type'); }
+
+  function resetToGame() {
+    currentGame = currentSet = null;
+    pickType(currentType);
+  }
+
+  function resetToSet() {
+    currentSet = null;
+    pickGame(currentGame);
+  }
+
+  // ── Step 1 → 2 ────────────────────────────────────────────────────────────
+
+  function pickType(type) {
+    currentType = type;
+    const typeLabel = type === 'sealed' ? 'Sealed' : 'Singles';
+    document.getElementById('bc-type').textContent = typeLabel;
+
+    const container = document.getElementById('game-cards');
+    container.innerHTML = Object.entries(CATALOG).map(([key, g]) => `
+      <div class="col-sm-4 col-md-3">
+        <button class="btn btn-outline-secondary w-100 py-3" onclick="pickGame('${key}')">
+          <i class="${g.icon} fs-4 d-block mb-1"></i>
+          <span class="fw-medium">${escHtml(g.label)}</span>
+        </button>
+      </div>
+    `).join('');
+    showStep('step-game');
+  }
+
+  // ── Step 2 → 3 ────────────────────────────────────────────────────────────
+
+  function pickGame(game) {
+    currentGame = game;
+    const g = CATALOG[game];
+    const typeLabel = currentType === 'sealed' ? 'Sealed' : 'Singles';
+    document.getElementById('bc-type2').textContent = typeLabel;
+    document.getElementById('bc-game').textContent = g.label;
+
+    const container = document.getElementById('set-list');
+    let html = '';
+    for (const [era, sets] of Object.entries(g.eras)) {
+      html += `<h6 class="fw-semibold mt-3 mb-2">${escHtml(era)}</h6>`;
+      html += '<div class="list-group mb-2">';
+      for (const s of sets) {
+        html += `<button class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center"
+                         onclick="pickSet('${escHtml(s.code)}','${escHtml(s.label)}')">
+          <span>${escHtml(s.label)}</span>
+          <span class="text-muted small">${escHtml(s.code)}</span>
+        </button>`;
       }
-      document.getElementById('loading').classList.add('d-none');
+      html += '</div>';
+    }
+    container.innerHTML = html;
+    showStep('step-set');
+  }
+
+  // ── Step 3 → 4: Load products ──────────────────────────────────────────────
+
+  async function pickSet(setCode, setLabel) {
+    currentSet = setCode;
+    const g = CATALOG[currentGame];
+    const typeLabel = currentType === 'sealed' ? 'Sealed' : 'Singles';
+    document.getElementById('bc-type3').textContent = typeLabel;
+    document.getElementById('bc-game2').textContent = g.label;
+    document.getElementById('bc-set').textContent = setLabel;
+    showStep('step-results');
+
+    document.getElementById('results-loading').classList.remove('d-none');
+    document.getElementById('items-card').classList.add('d-none');
+    document.getElementById('results-empty').classList.add('d-none');
+    document.getElementById('results-count').classList.add('d-none');
+
+    try {
+      const items = await api('GET', `/products?type=${currentType}&game=${currentGame}&set_code=${setCode}&limit=500`);
+      document.getElementById('results-loading').classList.add('d-none');
+
       if (!items || items.length === 0) {
-        document.getElementById('empty-state').classList.remove('d-none');
+        document.getElementById('results-empty').classList.remove('d-none');
         return;
       }
-      allItems = items;
-      populateFilters(items);
-      applyFilters();
+      const countEl = document.getElementById('results-count');
+      countEl.textContent = `${items.length} product${items.length === 1 ? '' : 's'}`;
+      countEl.classList.remove('d-none');
+      renderItems(items);
     } catch (e) {
-      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('results-loading').classList.add('d-none');
       showToast('Failed to load products: ' + e.message, 'danger');
     }
   }
 
-  function populateFilters(items) {
-    const games = [...new Set(items.map(p => p.game_category).filter(Boolean))].sort();
-    const sets  = [...new Set(items.map(p => p.game_subcategory).filter(Boolean))].sort();
-    const fill = (id, opts) => {
-      const sel = document.getElementById(id);
-      const first = sel.options[0].outerHTML;
-      sel.innerHTML = first + opts.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
-    };
-    fill('filter-game', games);
-    fill('filter-subcategory', sets);
-    document.getElementById('filters-card').classList.remove('d-none');
-  }
-
-  function applyFilters() {
-    const typeVal = document.getElementById('filter-type').value;
-    const game    = document.getElementById('filter-game').value;
-    const sub     = document.getElementById('filter-subcategory').value;
-    const search  = document.getElementById('filter-search').value.toLowerCase().trim();
-    const filtered = allItems.filter(p => {
-      if (typeVal) {
-        const isSealed = p.product_id.startsWith('sealed:');
-        if (typeVal === 'sealed' && !isSealed) return false;
-        if (typeVal === 'card' && isSealed) return false;
-      }
-      if (game && p.game_category !== game) return false;
-      if (sub && p.game_subcategory !== sub) return false;
-      if (search && !(p.name || '').toLowerCase().includes(search)) return false;
-      return true;
-    });
-    const countEl = document.getElementById('results-count');
-    countEl.textContent = `Showing ${filtered.length} of ${allItems.length} products`;
-    countEl.classList.remove('d-none');
-    renderItems(filtered);
-  }
-
   function renderItems(items) {
     document.getElementById('items-card').classList.remove('d-none');
-    document.getElementById('empty-state').classList.add('d-none');
     document.getElementById('items-tbody').innerHTML = items.map(p => {
       const isSealed = p.product_id.startsWith('sealed:');
-      const typeBadge = isSealed
-        ? '<span class="badge text-bg-primary" style="font-size:0.7em">Sealed</span>'
-        : '<span class="badge text-bg-info" style="font-size:0.7em">Card</span>';
       return `
       <tr>
         <td class="ps-3">
@@ -168,18 +403,13 @@
             ${p.image_url
               ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;">`
               : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`}
-            <div>
-              <span class="fw-medium">${escHtml(p.name)}</span>
-              <div>${typeBadge}</div>
-            </div>
+            <span class="fw-medium">${escHtml(p.name)}</span>
           </div>
         </td>
-        <td class="text-muted">${escHtml(p.game_category || '—')}</td>
-        <td class="text-muted">${escHtml(p.game_subcategory || '—')}</td>
-        <td class="text-muted">${escHtml(p.product_category || '—')}</td>
+        <td class="text-muted">${escHtml(p.product_subtype || p.product_category || '—')}</td>
         <td class="text-end pe-3">
           <a href="/transactions/?product_id=${encodeURIComponent(p.product_id)}"
-             class="btn btn-sm btn-outline-primary" title="Log transaction for this product">
+             class="btn btn-sm btn-outline-primary" title="Log transaction">
             <i class="bi bi-plus-lg me-1"></i>Transaction
           </a>
         </td>
