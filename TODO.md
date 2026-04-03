@@ -1,9 +1,10 @@
 # Collection Showcase — TODO
 
 ## Up Next
-- [ ] **Include singles in products.json** — syncer currently filters `WHERE product_type = 'sealed'`; include cards too so singles appear on products page and are selectable for transactions
-- [ ] **Filterable product picker on transactions page** — replace the plain `<select>` dropdown with a searchable/filterable picker (type-ahead by name, filter by game/type sealed vs card)
-- [ ] **Products → Transactions interlink** — add "Add Transaction" button per product row on the products page that navigates to transactions page with the product pre-selected
+- [ ] **Collection page — show location (display/binder/unorganized)** — JOIN collection with display items + binder slots to show where each owned product is placed; compare owned qty vs placed qty to compute "unorganized" count; update collection.json syncer and frontend
+- [x] **Include singles in products.json** (2026-04-03) — syncer now includes all catalog_products (sealed + cards)
+- [x] **Filterable product picker on transactions page** (2026-04-03) — searchable type-ahead with game/type filters, replaces plain dropdown
+- [x] **Products → Transactions interlink** (2026-04-03) — drill-down products page with "Transaction" button per row; transactions page supports ?product_id= pre-selection
 - [ ] Test binder/display UI — create first binder + display via admin (backend is now live with routes)
 - [ ] Validate pull rate calculator — confirm p50/p75/p90 and all 3 calc tabs render correctly for Pokemon SV sets in admin; check ace_spec_rare rows (mds=null, may be missing unique_card_count) show graceful — fallback
 - [ ] Build set difficulty dashboard — `catalog.set_pull_rates` now has 258 Pokemon rows + 16 Lorcana rows; showcase p50/p75/p90 packs-to-complete across sets and eras
