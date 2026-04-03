@@ -2,9 +2,6 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-box me-2 text-primary"></i>Products</h2>
   <div class="d-flex gap-2">
-    <button id="btn-sync" class="btn btn-outline-secondary btn-sm d-none" onclick="triggerSync(this)">
-      <i class="bi bi-cloud-upload me-1"></i>Sync
-    </button>
     <div id="btn-refresh-group" class="btn-group btn-group-sm d-none" role="group" aria-label="Refresh source">
       <button class="btn btn-outline-secondary" onclick="refreshItems('github')">
         <i class="bi bi-github me-1"></i>GitHub
@@ -16,40 +13,45 @@
         <i class="bi bi-plug me-1"></i>API
       </button>
     </div>
-    <button id="btn-add-product" class="btn btn-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
-      <i class="bi bi-plus-lg me-1"></i>Add Product
-    </button>
   </div>
 </div>
 
 <div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
-  <p class="text-muted mt-2">No products yet. Add your first one!</p>
+  <p class="text-muted mt-2">No products found.</p>
 </div>
 
 <!-- Filters -->
 <div class="card shadow-sm border-0 d-none mb-3" id="filters-card">
   <div class="card-body py-2">
     <div class="row g-2">
-      <div class="col-sm-4">
+      <div class="col-sm-3">
+        <select class="form-select form-select-sm" id="filter-type" onchange="applyFilters()">
+          <option value="">All Types</option>
+          <option value="sealed">Sealed</option>
+          <option value="card">Singles</option>
+        </select>
+      </div>
+      <div class="col-sm-3">
         <select class="form-select form-select-sm" id="filter-game" onchange="applyFilters()">
           <option value="">All Games</option>
         </select>
       </div>
-      <div class="col-sm-4">
+      <div class="col-sm-3">
         <select class="form-select form-select-sm" id="filter-subcategory" onchange="applyFilters()">
           <option value="">All Sets</option>
         </select>
       </div>
-      <div class="col-sm-4">
-        <select class="form-select form-select-sm" id="filter-product-category" onchange="applyFilters()">
-          <option value="">All Product Types</option>
-        </select>
+      <div class="col-sm-3">
+        <input type="text" class="form-control form-control-sm" id="filter-search"
+               placeholder="Search by name…" oninput="applyFilters()">
       </div>
     </div>
   </div>
 </div>
+
+<div id="results-count" class="text-muted small mb-2 d-none"></div>
 
 <div class="card shadow-sm border-0 d-none" id="items-card">
   <div class="card-body p-0">
@@ -61,7 +63,6 @@
             <th>Game</th>
             <th>Set</th>
             <th>Type</th>
-            <th>Added</th>
             <th class="text-end pe-3">Actions</th>
           </tr>
         </thead>
@@ -70,98 +71,21 @@
     </div>
   </div>
 </div>
-
-<!-- Create / Edit Modal -->
-<div class="modal fade" id="itemModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title" id="modal-title">Add Product</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="item-id">
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-name">Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="item-name" placeholder="e.g. Black Lotus">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-game">Game / Category</label>
-          <input type="text" class="form-control" id="item-game" placeholder="e.g. Magic: The Gathering">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-subcategory">Subcategory</label>
-          <input type="text" class="form-control" id="item-game-subcategory" placeholder="e.g. First Edition">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-product-category">Product Category</label>
-          <input type="text" class="form-control" id="item-product-category" placeholder="e.g. Booster Pack">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-tcgplayer-id">TCGPlayer ID</label>
-          <input type="text" class="form-control" id="item-tcgplayer-id" placeholder="e.g. 123456">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-pricecharting-url">Price Charting URL</label>
-          <input type="url" class="form-control" id="item-pricecharting-url" placeholder="https://www.pricecharting.com/...">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-listing-url">Listing URL</label>
-          <input type="url" class="form-control" id="item-listing-url" placeholder="https://...">
-        </div>
-        <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
-        <div id="batch-indicator" class="alert alert-info py-2 small d-none mt-2">
-          <i class="bi bi-stack me-1"></i><span id="batch-count">0</span> queued — will all be saved together
-        </div>
-      </div>
-      <div class="modal-footer border-0 pt-0">
-        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-outline-primary btn-sm d-none" id="modal-add-another-btn" onclick="addToBatch()">Add to Batch</button>
-        <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Delete confirm -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-body text-center pt-4">
-        <i class="bi bi-trash3 fs-2 text-danger"></i>
-        <p class="mt-2 mb-1 fw-medium">Delete this product?</p>
-        <p class="text-muted small">All related transactions and price history will also be removed.</p>
-      </div>
-      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
-        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
-      </div>
-    </div>
-  </div>
-</div>
 {{ end }}
 
 {{ define "page-scripts" }}
 <script>
-  const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
-  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-  let productBatch = [];
-
-  document.getElementById('itemModal').addEventListener('hidden.bs.modal', () => { productBatch = []; });
-
-  // Load data publicly — no auth required
-  loadItems();
-
   // Show admin controls if signed in as admin
   firebase.auth().onAuthStateChanged(user => {
     if (user && isEmailAllowed(user.email)) {
-      document.getElementById('btn-sync').classList.remove('d-none');
-      document.getElementById('btn-add-product').classList.remove('d-none');
       document.getElementById('btn-refresh-group').classList.remove('d-none');
     }
   });
 
   let allItems = [];
+
+  // Load data publicly — no auth required
+  loadItems();
 
   async function refreshItems(source) {
     const btns = document.querySelectorAll('#btn-refresh-group button');
@@ -187,7 +111,7 @@
       }
       allItems = items;
       populateFilters(items);
-      renderItems(items);
+      applyFilters();
     } catch (e) {
       document.getElementById('loading').classList.add('d-none');
       showToast('Failed to load products: ' + e.message, 'danger');
@@ -195,9 +119,8 @@
   }
 
   function populateFilters(items) {
-    const games    = [...new Set(items.map(p => p.game_category).filter(Boolean))].sort();
-    const sets     = [...new Set(items.map(p => p.game_subcategory).filter(Boolean))].sort();
-    const types    = [...new Set(items.map(p => p.product_category).filter(Boolean))].sort();
+    const games = [...new Set(items.map(p => p.game_category).filter(Boolean))].sort();
+    const sets  = [...new Set(items.map(p => p.game_subcategory).filter(Boolean))].sort();
     const fill = (id, opts) => {
       const sel = document.getElementById(id);
       const first = sel.options[0].outerHTML;
@@ -205,168 +128,65 @@
     };
     fill('filter-game', games);
     fill('filter-subcategory', sets);
-    fill('filter-product-category', types);
     document.getElementById('filters-card').classList.remove('d-none');
   }
 
   function applyFilters() {
-    const game = document.getElementById('filter-game').value;
-    const sub  = document.getElementById('filter-subcategory').value;
-    const type = document.getElementById('filter-product-category').value;
-    const filtered = allItems.filter(p =>
-      (!game || p.game_category === game) &&
-      (!sub  || p.game_subcategory === sub) &&
-      (!type || p.product_category === type)
-    );
+    const typeVal = document.getElementById('filter-type').value;
+    const game    = document.getElementById('filter-game').value;
+    const sub     = document.getElementById('filter-subcategory').value;
+    const search  = document.getElementById('filter-search').value.toLowerCase().trim();
+    const filtered = allItems.filter(p => {
+      if (typeVal) {
+        const isSealed = p.product_id.startsWith('sealed:');
+        if (typeVal === 'sealed' && !isSealed) return false;
+        if (typeVal === 'card' && isSealed) return false;
+      }
+      if (game && p.game_category !== game) return false;
+      if (sub && p.game_subcategory !== sub) return false;
+      if (search && !(p.name || '').toLowerCase().includes(search)) return false;
+      return true;
+    });
+    const countEl = document.getElementById('results-count');
+    countEl.textContent = `Showing ${filtered.length} of ${allItems.length} products`;
+    countEl.classList.remove('d-none');
     renderItems(filtered);
   }
 
   function renderItems(items) {
     document.getElementById('items-card').classList.remove('d-none');
     document.getElementById('empty-state').classList.add('d-none');
-    document.getElementById('items-tbody').innerHTML = items.map(p => `
+    document.getElementById('items-tbody').innerHTML = items.map(p => {
+      const isSealed = p.product_id.startsWith('sealed:');
+      const typeBadge = isSealed
+        ? '<span class="badge text-bg-primary" style="font-size:0.7em">Sealed</span>'
+        : '<span class="badge text-bg-info" style="font-size:0.7em">Card</span>';
+      return `
       <tr>
         <td class="ps-3">
           <div class="d-flex align-items-center gap-2">
             ${p.image_url
               ? `<img src="${escHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:4px;">`
               : `<div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;flex-shrink:0;"></div>`}
-            <span class="fw-medium">${escHtml(p.name)}</span>
+            <div>
+              <span class="fw-medium">${escHtml(p.name)}</span>
+              <div>${typeBadge}</div>
+            </div>
           </div>
         </td>
         <td class="text-muted">${escHtml(p.game_category || '—')}</td>
         <td class="text-muted">${escHtml(p.game_subcategory || '—')}</td>
         <td class="text-muted">${escHtml(p.product_category || '—')}</td>
-        <td class="text-muted small">${fmtDate(p.created_at)}</td>
         <td class="text-end pe-3">
-          <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(p)})'>
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${p.product_id}')">
-            <i class="bi bi-trash3"></i>
-          </button>
+          <a href="/transactions/?product_id=${encodeURIComponent(p.product_id)}"
+             class="btn btn-sm btn-outline-primary" title="Log transaction for this product">
+            <i class="bi bi-plus-lg me-1"></i>Transaction
+          </a>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   }
-
-  function resetProductForm() {
-    document.getElementById('item-id').value = '';
-    document.getElementById('item-name').value = '';
-    document.getElementById('item-game').value = '';
-    document.getElementById('item-game-subcategory').value = '';
-    document.getElementById('item-product-category').value = '';
-    document.getElementById('item-tcgplayer-id').value = '';
-    document.getElementById('item-pricecharting-url').value = '';
-    document.getElementById('item-listing-url').value = '';
-    document.getElementById('modal-error').classList.add('d-none');
-  }
-
-  function updateBatchIndicator() {
-    const n = productBatch.length;
-    const indicator = document.getElementById('batch-indicator');
-    const saveBtn = document.getElementById('modal-save-btn');
-    if (n > 0) {
-      document.getElementById('batch-count').textContent = n;
-      indicator.classList.remove('d-none');
-      saveBtn.textContent = `Save All (${n + 1})`;
-    } else {
-      indicator.classList.add('d-none');
-      saveBtn.textContent = 'Save';
-    }
-  }
-
-  function buildProductBody() {
-    return {
-      name: document.getElementById('item-name').value.trim(),
-      game_category: document.getElementById('item-game').value.trim() || null,
-      game_subcategory: document.getElementById('item-game-subcategory').value.trim() || null,
-      product_category: document.getElementById('item-product-category').value.trim() || null,
-      tcgplayer_id: document.getElementById('item-tcgplayer-id').value.trim() || null,
-      pricecharting_url: document.getElementById('item-pricecharting-url').value.trim() || null,
-      listing_url: document.getElementById('item-listing-url').value.trim() || null,
-    };
-  }
-
-  function openCreateModal() {
-    document.getElementById('modal-title').textContent = 'Add Product';
-    productBatch = [];
-    resetProductForm();
-    updateBatchIndicator();
-    document.getElementById('modal-add-another-btn').classList.remove('d-none');
-  }
-
-  function openEditModal(item) {
-    document.getElementById('modal-title').textContent = 'Edit Product';
-    productBatch = [];
-    document.getElementById('modal-add-another-btn').classList.add('d-none');
-    document.getElementById('item-id').value = item.product_id;
-    document.getElementById('item-name').value = item.name;
-    document.getElementById('item-game').value = item.game_category || '';
-    document.getElementById('item-game-subcategory').value = item.game_subcategory || '';
-    document.getElementById('item-product-category').value = item.product_category || '';
-    document.getElementById('item-tcgplayer-id').value = item.tcgplayer_id || '';
-    document.getElementById('item-pricecharting-url').value = item.pricecharting_url || '';
-    document.getElementById('item-listing-url').value = item.listing_url || '';
-    document.getElementById('modal-error').classList.add('d-none');
-    itemModal.show();
-  }
-
-  function addToBatch() {
-    const name = document.getElementById('item-name').value.trim();
-    const errEl = document.getElementById('modal-error');
-    errEl.classList.add('d-none');
-    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
-    productBatch.push(buildProductBody());
-    resetProductForm();
-    updateBatchIndicator();
-  }
-
-  async function saveItem() {
-    const id   = document.getElementById('item-id').value;
-    const name = document.getElementById('item-name').value.trim();
-    const errEl = document.getElementById('modal-error');
-    errEl.classList.add('d-none');
-    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
-
-    const btn = document.getElementById('modal-save-btn');
-    const anotherBtn = document.getElementById('modal-add-another-btn');
-    btn.disabled = true;
-    anotherBtn.disabled = true;
-    try {
-      if (id) {
-        await api('PUT', `/products/${id}`, buildProductBody());
-      } else {
-        const all = [...productBatch, buildProductBody()];
-        if (all.length === 1) {
-          await api('POST', '/products', all[0]);
-        } else {
-          await api('POST', '/products/bulk', { products: all });
-        }
-      }
-      itemModal.hide();
-      await loadItems();
-    } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove('d-none');
-    } finally {
-      btn.disabled = false;
-      anotherBtn.disabled = false;
-    }
-  }
-
-  let pendingDeleteId = null;
-  function openDeleteModal(id) { pendingDeleteId = id; deleteModal.show(); }
-
-  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-    try {
-      await api('DELETE', `/products/${pendingDeleteId}`);
-      deleteModal.hide();
-      await loadItems();
-    } catch (e) { showToast('Delete failed: ' + e.message, 'danger'); }
-  });
 
   function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
-  function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '—'; }
 </script>
 {{ end }}

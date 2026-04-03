@@ -55,11 +55,34 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="item-id">
+        <input type="hidden" id="item-product-id">
         <div class="mb-3">
-          <label class="form-label small fw-medium" for="item-product">Product <span class="text-danger">*</span></label>
-          <select class="form-select" id="item-product">
-            <option value="">Loading products…</option>
-          </select>
+          <label class="form-label small fw-medium">Product <span class="text-danger">*</span></label>
+          <!-- Filterable product picker -->
+          <div class="product-picker" id="product-picker">
+            <div class="d-flex gap-2 mb-2">
+              <select class="form-select form-select-sm" id="picker-filter-type" style="width:auto;">
+                <option value="">All Types</option>
+                <option value="sealed">Sealed</option>
+                <option value="card">Singles</option>
+              </select>
+              <select class="form-select form-select-sm" id="picker-filter-game" style="width:auto;">
+                <option value="">All Games</option>
+              </select>
+            </div>
+            <div class="position-relative">
+              <input type="text" class="form-control" id="picker-search"
+                     placeholder="Search products…" autocomplete="off">
+              <div id="picker-results" class="list-group position-absolute w-100 shadow-sm d-none"
+                   style="z-index:1050; max-height:250px; overflow-y:auto; top:100%;"></div>
+            </div>
+            <div id="picker-selected" class="d-none mt-2 p-2 border rounded bg-light d-flex align-items-center gap-2">
+              <img id="picker-selected-img" src="" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:4px;">
+              <span id="picker-selected-name" class="fw-medium small"></span>
+              <span id="picker-selected-badge" class="badge text-bg-secondary small ms-auto"></span>
+              <button type="button" class="btn-close btn-close-sm ms-2" onclick="clearProductSelection()"></button>
+            </div>
+          </div>
         </div>
         <div class="row g-3">
           <div class="col-sm-6">
@@ -148,20 +171,140 @@
     }
   });
 
-  // Load data publicly — no auth required
+  // ── Filterable Product Picker ─────────────────────────────────────────────
+
+  const pickerSearch  = document.getElementById('picker-search');
+  const pickerResults = document.getElementById('picker-results');
+  const pickerType    = document.getElementById('picker-filter-type');
+  const pickerGame    = document.getElementById('picker-filter-game');
+  let pickerDebounce  = null;
+
+  function populatePickerFilters(prods) {
+    const games = [...new Set(prods.map(p => p.game_category).filter(Boolean))].sort();
+    pickerGame.innerHTML = '<option value="">All Games</option>' +
+      games.map(g => `<option value="${escHtml(g)}">${escHtml(g)}</option>`).join('');
+  }
+
+  function filterProducts(query) {
+    const typeFilter = pickerType.value;
+    const gameFilter = pickerGame.value;
+    const q = query.toLowerCase().trim();
+    return products.filter(p => {
+      if (typeFilter) {
+        const isSealed = p.product_id.startsWith('sealed:');
+        if (typeFilter === 'sealed' && !isSealed) return false;
+        if (typeFilter === 'card' && isSealed) return false;
+      }
+      if (gameFilter && p.game_category !== gameFilter) return false;
+      if (!q) return true;
+      return (p.name && p.name.toLowerCase().includes(q)) ||
+             (p.game_category && p.game_category.toLowerCase().includes(q)) ||
+             (p.game_subcategory && p.game_subcategory.toLowerCase().includes(q)) ||
+             (p.product_category && p.product_category.toLowerCase().includes(q));
+    }).slice(0, 50);
+  }
+
+  function renderPickerResults(filtered) {
+    if (filtered.length === 0) {
+      pickerResults.innerHTML = '<div class="list-group-item text-muted small">No matches</div>';
+      pickerResults.classList.remove('d-none');
+      return;
+    }
+    pickerResults.innerHTML = filtered.map(p => {
+      const isSealed = p.product_id.startsWith('sealed:');
+      const badge = isSealed
+        ? '<span class="badge text-bg-primary me-1" style="font-size:0.65em">Sealed</span>'
+        : '<span class="badge text-bg-info me-1" style="font-size:0.65em">Card</span>';
+      const img = p.image_url
+        ? `<img src="${escHtml(p.image_url)}" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:3px;flex-shrink:0;">`
+        : `<div style="width:28px;height:28px;background:#f0f0f0;border-radius:3px;flex-shrink:0;"></div>`;
+      return `<button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center gap-2"
+                      onclick="selectProduct('${escHtml(p.product_id)}')">
+        ${img} ${badge}
+        <span class="small text-truncate">${escHtml(p.name)}</span>
+        <span class="text-muted small ms-auto" style="font-size:0.7em;white-space:nowrap;">${escHtml(p.game_category || '')} / ${escHtml(p.game_subcategory || '')}</span>
+      </button>`;
+    }).join('');
+    pickerResults.classList.remove('d-none');
+  }
+
+  function updatePickerResults() {
+    const q = pickerSearch.value;
+    if (!q && !pickerType.value && !pickerGame.value) {
+      pickerResults.classList.add('d-none');
+      return;
+    }
+    renderPickerResults(filterProducts(q));
+  }
+
+  pickerSearch.addEventListener('input', () => {
+    clearTimeout(pickerDebounce);
+    pickerDebounce = setTimeout(updatePickerResults, 150);
+  });
+  pickerSearch.addEventListener('focus', () => {
+    if (pickerSearch.value || pickerType.value || pickerGame.value) updatePickerResults();
+  });
+  pickerType.addEventListener('change', updatePickerResults);
+  pickerGame.addEventListener('change', updatePickerResults);
+
+  // Close results when clicking outside
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#product-picker')) pickerResults.classList.add('d-none');
+  });
+
+  function selectProduct(productId) {
+    const p = productMap[productId];
+    if (!p) return;
+    document.getElementById('item-product-id').value = productId;
+    pickerSearch.classList.add('d-none');
+    pickerType.parentElement.parentElement.querySelector('.d-flex').classList.add('d-none');
+    pickerResults.classList.add('d-none');
+    const sel = document.getElementById('picker-selected');
+    const img = document.getElementById('picker-selected-img');
+    const name = document.getElementById('picker-selected-name');
+    const badge = document.getElementById('picker-selected-badge');
+    if (p.image_url) { img.src = p.image_url; img.classList.remove('d-none'); }
+    else { img.classList.add('d-none'); }
+    name.textContent = p.name;
+    const isSealed = productId.startsWith('sealed:');
+    badge.textContent = isSealed ? 'Sealed' : 'Card';
+    badge.className = 'badge small ms-auto ' + (isSealed ? 'text-bg-primary' : 'text-bg-info');
+    sel.classList.remove('d-none');
+    sel.classList.add('d-flex');
+  }
+
+  function clearProductSelection() {
+    document.getElementById('item-product-id').value = '';
+    pickerSearch.value = '';
+    pickerSearch.classList.remove('d-none');
+    document.querySelector('#product-picker .d-flex').classList.remove('d-none');
+    const sel = document.getElementById('picker-selected');
+    sel.classList.add('d-none');
+    sel.classList.remove('d-flex');
+    pickerSearch.focus();
+  }
+
+  // ── Load data ─────────────────────────────────────────────────────────────
+
   (async () => {
     products = await loadJsonData('products.json').catch(() => []);
     productMap = Object.fromEntries(products.map(p => [p.product_id, p]));
-    populateProductSelect(products);
+    populatePickerFilters(products);
+
+    // Check URL param for pre-selected product
+    const params = new URLSearchParams(window.location.search);
+    const preselect = params.get('product_id');
+    if (preselect && productMap[preselect]) {
+      // Auto-open modal with product pre-selected
+      setTimeout(() => {
+        openCreateModal();
+        selectProduct(preselect);
+        itemModal.show();
+      }, 300);
+    }
+
     await loadItems();
   })();
-
-  function populateProductSelect(prods) {
-    const sel = document.getElementById('item-product');
-    sel.innerHTML = prods.map(p =>
-      `<option value="${p.product_id}">${escHtml(p.name)}</option>`
-    ).join('');
-  }
 
   function productCell(id) {
     const p = productMap[id];
@@ -230,6 +373,7 @@
   function resetTransactionForm(full = true) {
     document.getElementById('item-id').value = '';
     if (full) {
+      clearProductSelection();
       document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
       document.getElementById('item-type').value = 'buy';
       document.getElementById('platform').value = '';
@@ -256,7 +400,7 @@
 
   function buildTransactionBody() {
     return {
-      product_id: document.getElementById('item-product').value,
+      product_id: document.getElementById('item-product-id').value,
       transaction_date: document.getElementById('item-date').value,
       transaction_type: document.getElementById('item-type').value,
       quantity: parseInt(document.getElementById('item-qty').value),
@@ -279,7 +423,7 @@
     transactionBatch = [];
     document.getElementById('modal-add-another-btn').classList.add('d-none');
     document.getElementById('item-id').value = t.transaction_id;
-    document.getElementById('item-product').value = t.product_id;
+    selectProduct(t.product_id);
     document.getElementById('item-date').value = t.transaction_date ? t.transaction_date.split('T')[0] : '';
     document.getElementById('item-type').value = t.transaction_type;
     document.getElementById('item-qty').value = t.quantity;
@@ -291,7 +435,7 @@
   }
 
   function addToBatch() {
-    const product = document.getElementById('item-product').value;
+    const product = document.getElementById('item-product-id').value;
     const date    = document.getElementById('item-date').value;
     const qty     = parseInt(document.getElementById('item-qty').value);
     const price   = parseFloat(document.getElementById('item-price').value);
@@ -310,7 +454,7 @@
 
   async function saveItem() {
     const id      = document.getElementById('item-id').value;
-    const product = document.getElementById('item-product').value;
+    const product = document.getElementById('item-product-id').value;
     const date    = document.getElementById('item-date').value;
     const qty     = parseInt(document.getElementById('item-qty').value);
     const price   = parseFloat(document.getElementById('item-price').value);
