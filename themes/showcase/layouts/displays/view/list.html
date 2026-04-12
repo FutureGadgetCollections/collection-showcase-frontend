@@ -2,7 +2,7 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
     <a href="{{ "displays/" | relURL }}" class="btn btn-sm btn-outline-secondary me-2">
-      <i class="bi bi-arrow-left me-1"></i>Displays
+      <i class="bi bi-arrow-left me-1"></i>Shelves
     </a>
     <span id="display-name" class="fw-semibold fs-5"></span>
     <span id="display-type-badge" class="badge ms-2"></span>
@@ -220,7 +220,7 @@ function escHtml(s) { const d = document.createElement('div'); d.appendChild(doc
   const params = new URLSearchParams(window.location.search);
   displayId = params.get('id');
   if (!displayId) {
-    document.getElementById('loading').innerHTML = '<p class="text-danger">No display ID specified.</p>';
+    document.getElementById('loading').innerHTML = '<p class="text-danger">No shelf ID specified.</p>';
     return;
   }
   productPickerModal = new bootstrap.Modal(document.getElementById('productPickerModal'));
@@ -261,7 +261,7 @@ async function loadDisplay() {
 
     renderDisplay();
   } catch (e) {
-    document.getElementById('loading').innerHTML = `<p class="text-danger">Failed to load display: ${escHtml(e.message)}</p>`;
+    document.getElementById('loading').innerHTML = `<p class="text-danger">Failed to load shelf: ${escHtml(e.message)}</p>`;
   }
 }
 
@@ -289,7 +289,7 @@ async function loadDisplayFromApi() {
     };
     renderDisplay();
   } catch (e) {
-    showToast('Failed to reload display: ' + e.message, 'danger');
+    showToast('Failed to reload shelf: ' + e.message, 'danger');
   }
 }
 

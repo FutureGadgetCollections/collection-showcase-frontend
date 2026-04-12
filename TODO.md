@@ -1,5 +1,21 @@
 # Collection Showcase — TODO
 
+## Critical — do first after MCP restart
+- [x] **Restored wiped Hololive transaction** (2026-04-12) — direct BQ INSERT via REST API with composite `product_id=sealed:hololive:hl01:booster-display` (12 × $56, 2026-02-01, buy); triggered `collection-showcase-data-sync` Cloud Run job; verified BQ + GCS + GitHub all show the row (transaction_id `45fba8c2-3091-4ea6-9c38-6cf75a59b807`). Note: GCS/GitHub sync writes to bucket/repo root (`transactions.json`), not `data/transactions.json`.
+- [x] **Guarded `cmd/setup/main.go` against data loss** (2026-04-12) — transactions table now uses same safe "create, 409→update schema" pattern as box_breaks/box_break_pulls/price_history. Rare destructive schema changes (renames) now require a one-off manual step, which is the safer default.
+- [ ] **Verify MCP hang fix after server restart** — changes live on disk in `collection-showcase-mcp/server.py` and `collection-market-tracker-mcp/server.py` (ThreadPoolExecutor-bounded `@with_timeout()` on every tool; per-RPC `timeout=` on GCP SDK calls; GCS client singleton). Not effective until subprocesses respawn (`/mcp` reconnect or new Claude session). Smoke test: call `mcp__gcp-collection-tracker__bq_query` with a trivial query; should complete in <5s or return a timeout error, never hang.
+
+## Box Break feature — backend shipped, not yet deployed
+Backend code merged and compiles (2026-04-12). BQ tables + view live (setup ran). Next:
+- [x] **Deployed backend to Cloud Run** (2026-04-12) — version 1.0.12 live; `/box-breaks` responds with `[]`; CI build+deploy succeeded in 2m44s.
+- [ ] **Smoke test box break flow via UI** — pages built (2026-04-12) but not yet exercised end-to-end. Plan: run `hugo server`, sign in, Add Break (pick sealed, date, market value) → redirects to view → Edit pulls (add a few singles + a bulk row) → Save. Verify `inventory.collection` view reflects synthetic sealed-sell + singles-buys; verify `box-breaks/index.json` + `box-breaks/{id}.json` appear in GCS + data repo.
+- [x] **Frontend UI for box breaks — MVP** (2026-04-12) — built:
+  - `content/box-breaks/_index.md` + `themes/showcase/layouts/box-breaks/list.html` — list w/ sealed image, P&L summary, Create modal (sealed product dropdown filtered from products.json), delete button
+  - `content/box-breaks/view/_index.md` + `themes/showcase/layouts/box-breaks/view/list.html` — break header, pulls table, admin pulls editor (add single w/ searchable product picker, add bulk, live allocation preview), PUT /box-breaks/:id/pulls
+  - Navbar link (always-visible, like Binders/Shelves)
+- [ ] **"Mark as Ripped → Create Box Break" on sealed product detail page** — deferred; no sealed product detail page exists yet. Would need `/products/view/?id=…` or similar before this button has a home.
+- [ ] **Bulk sales (deferred)** — box break pulls of type "bulk" track cost basis but have no sell path yet. Needs a `box_break_bulk_sales` table and break-level revenue tracking.
+
 ## Up Next
 - [ ] **Collection page — show location (display/binder/unorganized)** — JOIN collection with display items + binder slots to show where each owned product is placed; compare owned qty vs placed qty to compute "unorganized" count; update collection.json syncer and frontend
 - [x] **Include singles in products.json** (2026-04-03) — syncer now includes all catalog_products (sealed + cards)

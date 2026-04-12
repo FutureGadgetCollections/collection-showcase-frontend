@@ -1,0 +1,242 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-box-seam me-2 text-primary"></i>Box Breaks</h2>
+  <div class="d-flex gap-2">
+    <button id="btn-add-break" class="btn btn-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#breakModal" onclick="openCreateModal()">
+      <i class="bi bi-plus-lg me-1"></i>Add Break
+    </button>
+  </div>
+</div>
+
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-box-seam fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No box breaks yet.</p>
+</div>
+
+<div id="items-grid" class="row g-3 d-none"></div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="breakModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Add Box Break</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="break-sealed">Sealed product <span class="text-danger">*</span></label>
+          <select class="form-select" id="break-sealed">
+            <option value="">Loading sealed products…</option>
+          </select>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label small fw-medium" for="break-date">Break date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="break-date">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-medium" for="break-value">Sealed market value <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" step="0.01" min="0" class="form-control" id="break-value" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="break-notes">Notes</label>
+          <textarea class="form-control" id="break-notes" rows="2" placeholder="Optional"></textarea>
+        </div>
+        <p class="text-muted small mb-0">Pulls are added on the break's view page after creation.</p>
+        <div id="modal-error" class="alert alert-danger py-2 small mt-3 d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveBreak()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center pt-4">
+        <i class="bi bi-trash3 fs-2 text-danger"></i>
+        <p class="mt-2 mb-1 fw-medium">Delete this box break?</p>
+        <p class="text-muted small">All pulls under this break will be removed and the synthetic sell/buy rows will disappear from the collection view.</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const breakModal  = new bootstrap.Modal(document.getElementById('breakModal'));
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+  let sealedProducts = [];
+
+  loadBreaks();
+  loadSealedProducts();
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (user && isEmailAllowed(user.email)) {
+      document.getElementById('btn-add-break').classList.remove('d-none');
+    }
+  });
+
+  async function loadBreaks() {
+    try {
+      const items = await loadJsonData('box-breaks/index.json');
+      document.getElementById('loading').classList.add('d-none');
+      if (!items || items.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+      renderBreaks(items);
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('empty-state').classList.remove('d-none');
+    }
+  }
+
+  async function loadSealedProducts() {
+    try {
+      const all = await loadJsonData('products.json');
+      sealedProducts = (all || []).filter(p => String(p.product_id || '').startsWith('sealed:'));
+      sealedProducts.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    } catch (e) {
+      sealedProducts = [];
+    }
+  }
+
+  function money(n) {
+    if (n == null || isNaN(n)) return '—';
+    const sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toFixed(2);
+  }
+
+  function gainBadge(n) {
+    if (n == null || isNaN(n)) return '<span class="text-muted small">—</span>';
+    const cls = n >= 0 ? 'text-success' : 'text-danger';
+    const arrow = n >= 0 ? '▲' : '▼';
+    return `<span class="${cls} small fw-medium">${arrow} ${money(n)}</span>`;
+  }
+
+  function renderBreaks(items) {
+    const grid = document.getElementById('items-grid');
+    grid.classList.remove('d-none');
+    grid.innerHTML = items.map(b => `
+      <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+          ${b.sealed_image_url ? `<img src="${escHtml(b.sealed_image_url)}" class="card-img-top" style="object-fit:contain;max-height:140px;padding:10px">` : ''}
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex align-items-start justify-content-between mb-2">
+              <h6 class="card-title mb-0 fw-semibold">${escHtml(b.sealed_name || b.sealed_product_id)}</h6>
+              <span id="admin-btns-${escHtml(b.break_id)}" class="d-none ms-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${escHtml(b.break_id)}')" title="Delete">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </span>
+            </div>
+            <div class="text-muted small mb-2"><i class="bi bi-calendar me-1"></i>${escHtml(b.break_date)}</div>
+            <div class="small mb-1">Sealed market: <span class="fw-medium">${money(b.sealed_market_value)}</span></div>
+            <div class="small mb-1">Sealed realized: ${gainBadge(b.sealed_realized_gain)}</div>
+            <div class="small mb-2 text-muted">${b.pull_count || 0} pull${b.pull_count === 1 ? '' : 's'} · ${money(b.total_pull_value)} value</div>
+            <div class="mt-auto">
+              <a href="{{ "" | relURL }}box-breaks/view/?id=${escHtml(b.break_id)}" class="btn btn-sm btn-outline-primary w-100">
+                <i class="bi bi-eye me-1"></i>View Break
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user && isEmailAllowed(user.email)) {
+        items.forEach(b => {
+          const el = document.getElementById('admin-btns-' + b.break_id);
+          if (el) el.classList.remove('d-none');
+        });
+      }
+    });
+  }
+
+  function openCreateModal() {
+    const sel = document.getElementById('break-sealed');
+    if (sealedProducts.length === 0) {
+      sel.innerHTML = '<option value="">No sealed products loaded</option>';
+    } else {
+      sel.innerHTML = '<option value="">Select a sealed product…</option>' +
+        sealedProducts.map(p => `<option value="${escHtml(p.product_id)}">${escHtml(p.name || p.product_id)}</option>`).join('');
+    }
+    document.getElementById('break-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('break-value').value = '';
+    document.getElementById('break-notes').value = '';
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  async function saveBreak() {
+    const sealed = document.getElementById('break-sealed').value;
+    const date   = document.getElementById('break-date').value;
+    const value  = parseFloat(document.getElementById('break-value').value);
+    const notes  = document.getElementById('break-notes').value.trim();
+    const errEl  = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    if (!sealed) { errEl.textContent = 'Sealed product is required.'; errEl.classList.remove('d-none'); return; }
+    if (!date)   { errEl.textContent = 'Break date is required.';   errEl.classList.remove('d-none'); return; }
+    if (!value || value <= 0) { errEl.textContent = 'Sealed market value must be > 0.'; errEl.classList.remove('d-none'); return; }
+
+    const btn = document.getElementById('modal-save-btn');
+    btn.disabled = true;
+    try {
+      const res = await api('POST', '/box-breaks', {
+        sealed_product_id:   sealed,
+        break_date:          date,
+        sealed_market_value: value,
+        notes,
+        pulls:               [],
+      });
+      breakModal.hide();
+      // Jump straight into the new break so the user can add pulls.
+      if (res && res.break_id) {
+        window.location.href = 'view/?id=' + encodeURIComponent(res.break_id);
+        return;
+      }
+      document.getElementById('loading').classList.remove('d-none');
+      document.getElementById('items-grid').classList.add('d-none');
+      await loadBreaks();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  let pendingDeleteId = null;
+  function openDeleteModal(id) { pendingDeleteId = id; deleteModal.show(); }
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    try {
+      await api('DELETE', `/box-breaks/${pendingDeleteId}`);
+      deleteModal.hide();
+      document.getElementById('loading').classList.remove('d-none');
+      document.getElementById('items-grid').classList.add('d-none');
+      await loadBreaks();
+    } catch (e) { showToast('Delete failed: ' + e.message, 'danger'); }
+  });
+
+  function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+</script>
+{{ end }}

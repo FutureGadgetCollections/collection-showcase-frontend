@@ -1,3 +1,3 @@
 ---
-title: "Displays"
+title: "Shelves"
 ---

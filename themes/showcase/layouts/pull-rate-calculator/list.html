@@ -1,0 +1,135 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-2">
+  <h2 class="h5 mb-0 fw-semibold"><i class="bi bi-calculator me-2 text-primary"></i>Pull Rate Calculator</h2>
+</div>
+<p class="text-muted small mb-4">Select a set to see packs needed to complete each rarity tier, ranked from hardest to easiest.</p>
+
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+<div id="error-state" class="alert alert-danger d-none"></div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 d-none mb-3" id="filters-card">
+  <div class="card-body py-2">
+    <div class="row g-2">
+      <div class="col-sm-6">
+        <select class="form-select form-select-sm" id="filter-era" onchange="onEraChange()">
+          <option value="">All Eras</option>
+        </select>
+      </div>
+      <div class="col-sm-6">
+        <select class="form-select form-select-sm" id="filter-set" onchange="onSetChange()">
+          <option value="">Select Set</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results table -->
+<div class="card shadow-sm border-0 d-none" id="results-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Rank</th>
+            <th>Rarity</th>
+            <th>Rate / pack</th>
+            <th>Unique cards</th>
+            <th>Hits / box</th>
+            <th title="Packs to collect all unique cards of this rarity at the 50th percentile (Gumbel coupon-collector)">p50 (packs)</th>
+            <th title="Packs to collect all unique cards of this rarity at the 75th percentile">p75 (packs)</th>
+            <th title="Packs to collect all unique cards of this rarity at the 90th percentile">p90 (packs)</th>
+            <th title="Expected unique cards of this rarity from 1 box (36 packs)">E[unique] / box</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  let allRates = [];
+
+  (async () => {
+    try {
+      allRates = await loadJsonData('data/set-pull-rates.json');
+      document.getElementById('loading').classList.add('d-none');
+      populateEras();
+      document.getElementById('filters-card').classList.remove('d-none');
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      const err = document.getElementById('error-state');
+      err.textContent = 'Failed to load pull rate data: ' + e.message;
+      err.classList.remove('d-none');
+    }
+  })();
+
+  function populateEras() {
+    const eras = [...new Set(allRates.map(r => r.era).filter(Boolean))].sort();
+    const sel  = document.getElementById('filter-era');
+    sel.innerHTML = '<option value="">All Eras</option>' +
+      eras.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  }
+
+  function onEraChange() {
+    const era  = document.getElementById('filter-era').value;
+    const rows = era ? allRates.filter(r => r.era === era) : allRates;
+    const sets = [...new Map(rows.map(r => [r.set_code, r.set_name])).entries()].sort((a,b) => a[0].localeCompare(b[0]));
+    document.getElementById('filter-set').innerHTML = '<option value="">Select Set</option>' +
+      sets.map(([code, name]) => `<option value="${esc(code)}">${esc(name)}</option>`).join('');
+    document.getElementById('results-card').classList.add('d-none');
+  }
+
+  function onSetChange() {
+    const era     = document.getElementById('filter-era').value;
+    const setCode = document.getElementById('filter-set').value;
+    if (!setCode) { document.getElementById('results-card').classList.add('d-none'); return; }
+
+    const rows = allRates
+      .filter(r => (!era || r.era === era) && r.set_code === setCode)
+      .sort((a, b) => (a.rarity_rank ?? 999) - (b.rarity_rank ?? 999));
+
+    document.getElementById('results-card').classList.remove('d-none');
+    document.getElementById('results-tbody').innerHTML = rows.map(r => {
+      const P = r.pull_rate_per_pack, N = r.unique_card_count;
+      const p50 = gumbelPacks(P, N, 0.50);
+      const p75 = gumbelPacks(P, N, 0.75);
+      const p90 = gumbelPacks(P, N, 0.90);
+      const hitsPerBox = P ? (P * 36).toFixed(2) : '—';
+      const expUniq    = (P && N) ? (N * (1 - Math.pow(1 - P/N, 36))).toFixed(2) : '—';
+      const fmtPacks   = v => v != null ? v.toLocaleString() : '—';
+      const rank       = r.rarity_rank != null ? `<span class="badge bg-secondary">#${r.rarity_rank}</span>` : '—';
+      return `<tr>
+        <td class="ps-3">${rank}</td>
+        <td class="fw-medium">${esc(r.rarity)}</td>
+        <td>${fmtRate(P)}</td>
+        <td class="text-muted">${N ?? '—'}</td>
+        <td class="text-muted">${hitsPerBox}</td>
+        <td class="fw-bold text-primary">${fmtPacks(p50)}</td>
+        <td class="text-muted">${fmtPacks(p75)}</td>
+        <td class="text-muted">${fmtPacks(p90)}</td>
+        <td class="text-muted">${expUniq}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function harmonicNumber(n) {
+    let h = 0;
+    for (let i = 1; i <= n; i++) h += 1 / i;
+    return h;
+  }
+
+  function gumbelPacks(rate, n, pct) {
+    if (!rate || !n) return null;
+    const q = rate / n;
+    return Math.round((harmonicNumber(n) - Math.log(-Math.log(pct))) / q);
+  }
+
+  function fmtRate(v) { return v != null ? (Number(v) * 100).toFixed(3) + '%' : '—'; }
+  function esc(s)     { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; }
+</script>
+{{ end }}

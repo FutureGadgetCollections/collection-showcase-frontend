@@ -38,6 +38,10 @@ serviceAccountKey.json
 
 # Claude Code — local settings only; agents/ is intentionally committed
 .claude/settings.local.json
+# Claude auto-memory (per-user, machine-specific)
+memory/
+# Local MCP config (contains absolute paths to sibling repos)
+.mcp.json
 
 # Editor/IDE
 .idea/

@@ -1,0 +1,405 @@
+{{ define "main" }}
+<div id="loading" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+
+<div id="content" class="d-none">
+  <a href="{{ "" | relURL }}box-breaks/" class="text-decoration-none small text-muted"><i class="bi bi-arrow-left me-1"></i>All box breaks</a>
+
+  <div class="d-flex align-items-start justify-content-between mt-2 mb-3 gap-3 flex-wrap">
+    <div class="d-flex gap-3 align-items-start">
+      <img id="sealed-img" src="" class="border rounded" style="height:80px;width:80px;object-fit:contain;display:none">
+      <div>
+        <h3 class="h5 fw-semibold mb-1" id="sealed-name">—</h3>
+        <div class="text-muted small mb-1" id="break-meta">—</div>
+        <div class="small">
+          Sealed market value: <span id="sealed-mv" class="fw-medium">—</span> ·
+          Avg cost: <span id="sealed-cost">—</span> ·
+          Realized: <span id="sealed-realized">—</span>
+        </div>
+      </div>
+    </div>
+    <div id="admin-actions" class="d-none">
+      <button class="btn btn-sm btn-outline-primary" id="btn-edit-pulls"><i class="bi bi-pencil me-1"></i>Edit pulls</button>
+    </div>
+  </div>
+
+  <div id="notes-row" class="alert alert-light py-2 small d-none" role="note"></div>
+
+  <!-- Current pulls view -->
+  <div id="pulls-view">
+    <h6 class="fw-semibold mb-2">Pulls</h6>
+    <div id="pulls-empty" class="text-muted small d-none">No pulls recorded.</div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="pulls-table">
+        <thead class="text-muted small">
+          <tr>
+            <th>Type</th>
+            <th>Product / Bulk</th>
+            <th class="text-end">Qty</th>
+            <th class="text-end">MV/unit</th>
+            <th class="text-end">Alloc cost/unit</th>
+            <th class="text-end">Latest price</th>
+          </tr>
+        </thead>
+        <tbody id="pulls-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pulls editor (admin) -->
+  <div id="pulls-editor" class="d-none border rounded p-3 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="fw-semibold mb-0">Edit pulls</h6>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="addEditorRow('single')"><i class="bi bi-plus-lg me-1"></i>Single</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="addEditorRow('bulk')"><i class="bi bi-plus-lg me-1"></i>Bulk</button>
+      </div>
+    </div>
+    <p class="text-muted small mb-3">
+      Allocated cost basis is computed server-side pro-rata by market value so the totals sum to the sealed market value.
+      The preview column shows what the server will compute.
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="editor-table">
+        <thead class="text-muted small">
+          <tr>
+            <th style="width:80px">Type</th>
+            <th>Product / Bulk</th>
+            <th style="width:80px" class="text-end">Qty</th>
+            <th style="width:110px" class="text-end">MV/unit</th>
+            <th style="width:110px" class="text-end">Preview alloc</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="editor-body"></tbody>
+        <tfoot class="small">
+          <tr>
+            <td colspan="3" class="text-end text-muted">Total pull market value:</td>
+            <td class="text-end fw-medium" id="editor-total-mv">$0.00</td>
+            <td class="text-end fw-medium" id="editor-total-alloc">$0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div id="editor-error" class="alert alert-danger py-2 small d-none"></div>
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-sm btn-secondary" onclick="cancelEditor()">Cancel</button>
+      <button class="btn btn-sm btn-primary" id="btn-save-pulls" onclick="savePulls()">Save pulls</button>
+    </div>
+  </div>
+</div>
+
+<!-- Product picker modal (for single pulls) -->
+<div class="modal fade" id="productModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Pick a product</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-2" id="picker-search" placeholder="Search by name or product id…">
+        <div id="picker-results" class="list-group" style="max-height:420px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const params   = new URLSearchParams(window.location.search);
+  const breakId  = params.get('id');
+
+  let detail       = null;       // current box break JSON
+  let allProducts  = [];         // products.json cache
+  let editorRows   = [];         // working copy of pulls for the editor
+  let pickerTarget = null;       // which editor row the picker writes back to
+
+  const productModal = new bootstrap.Modal(document.getElementById('productModal'));
+
+  if (!breakId) {
+    document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Missing ?id= parameter.</div>';
+  } else {
+    loadBreak();
+    loadProducts();
+  }
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (user && isEmailAllowed(user.email)) {
+      document.getElementById('admin-actions').classList.remove('d-none');
+    }
+  });
+
+  async function loadBreak() {
+    try {
+      detail = await loadJsonData(`box-breaks/${breakId}.json`);
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('content').classList.remove('d-none');
+      renderHeader();
+      renderPulls(detail.pulls || []);
+    } catch (e) {
+      document.getElementById('loading').innerHTML =
+        '<div class="alert alert-danger">Failed to load break: ' + escHtml(e.message) + '</div>';
+    }
+  }
+
+  async function loadProducts() {
+    try {
+      allProducts = await loadJsonData('products.json') || [];
+    } catch (e) { allProducts = []; }
+  }
+
+  function money(n) {
+    if (n == null || isNaN(n)) return '—';
+    const sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toFixed(2);
+  }
+
+  function gainSpan(n) {
+    if (n == null || isNaN(n)) return '<span class="text-muted">—</span>';
+    const cls = n >= 0 ? 'text-success' : 'text-danger';
+    const arrow = n >= 0 ? '▲' : '▼';
+    return `<span class="${cls} fw-medium">${arrow} ${money(n)}</span>`;
+  }
+
+  function renderHeader() {
+    if (detail.sealed_image_url) {
+      const img = document.getElementById('sealed-img');
+      img.src = detail.sealed_image_url;
+      img.style.display = '';
+    }
+    document.getElementById('sealed-name').textContent = detail.sealed_name || detail.sealed_product_id || '—';
+    const meta = [];
+    meta.push(`<i class="bi bi-calendar me-1"></i>${escHtml(detail.break_date)}`);
+    if (detail.sealed_game)    meta.push(escHtml(detail.sealed_game));
+    if (detail.sealed_era)     meta.push(escHtml(detail.sealed_era));
+    if (detail.sealed_subtype) meta.push(escHtml(detail.sealed_subtype));
+    document.getElementById('break-meta').innerHTML = meta.join(' · ');
+    document.getElementById('sealed-mv').textContent = money(detail.sealed_market_value);
+    document.getElementById('sealed-cost').textContent = money(detail.sealed_avg_cost);
+    document.getElementById('sealed-realized').innerHTML = gainSpan(detail.sealed_realized_gain);
+    if (detail.notes) {
+      const n = document.getElementById('notes-row');
+      n.textContent = detail.notes;
+      n.classList.remove('d-none');
+    }
+  }
+
+  function renderPulls(pulls) {
+    const body = document.getElementById('pulls-body');
+    const empty = document.getElementById('pulls-empty');
+    const table = document.getElementById('pulls-table');
+    if (!pulls.length) {
+      empty.classList.remove('d-none');
+      table.classList.add('d-none');
+      return;
+    }
+    empty.classList.add('d-none');
+    table.classList.remove('d-none');
+    body.innerHTML = pulls.map(p => {
+      const label = p.pull_type === 'bulk'
+        ? `${escHtml(p.bulk_game || '')}${p.bulk_set_code ? ' · ' + escHtml(p.bulk_set_code) : ''}${p.bulk_label ? ' — ' + escHtml(p.bulk_label) : ''}`
+        : `${escHtml(p.product_name || p.product_id || '')}`;
+      const typeBadge = p.pull_type === 'bulk'
+        ? '<span class="badge bg-secondary">bulk</span>'
+        : '<span class="badge bg-primary">single</span>';
+      return `
+        <tr>
+          <td>${typeBadge}</td>
+          <td>${label}</td>
+          <td class="text-end">${p.quantity}</td>
+          <td class="text-end">${money(p.market_value_per_unit)}</td>
+          <td class="text-end">${money(p.allocated_cost_basis_per_unit)}</td>
+          <td class="text-end">${money(p.latest_market_price)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ── Editor ───────────────────────────────────────────────────────────────
+
+  document.getElementById('btn-edit-pulls').addEventListener('click', () => {
+    editorRows = (detail.pulls || []).map(p => ({
+      pull_type:             p.pull_type,
+      product_id:            p.product_id || '',
+      product_name:          p.product_name || '',
+      bulk_game:             p.bulk_game || '',
+      bulk_set_code:         p.bulk_set_code || '',
+      bulk_label:            p.bulk_label || '',
+      quantity:              p.quantity || 1,
+      market_value_per_unit: p.market_value_per_unit || 0,
+      notes:                 p.notes || '',
+    }));
+    renderEditor();
+    document.getElementById('pulls-view').classList.add('d-none');
+    document.getElementById('pulls-editor').classList.remove('d-none');
+  });
+
+  function cancelEditor() {
+    document.getElementById('pulls-editor').classList.add('d-none');
+    document.getElementById('pulls-view').classList.remove('d-none');
+    document.getElementById('editor-error').classList.add('d-none');
+  }
+
+  function addEditorRow(type) {
+    editorRows.push({
+      pull_type: type,
+      product_id: '', product_name: '',
+      bulk_game: '', bulk_set_code: '', bulk_label: '',
+      quantity: 1, market_value_per_unit: 0, notes: '',
+    });
+    renderEditor();
+  }
+
+  function removeEditorRow(i) {
+    editorRows.splice(i, 1);
+    renderEditor();
+  }
+
+  function renderEditor() {
+    const body = document.getElementById('editor-body');
+    body.innerHTML = editorRows.map((r, i) => {
+      const typeBadge = r.pull_type === 'bulk'
+        ? '<span class="badge bg-secondary">bulk</span>'
+        : '<span class="badge bg-primary">single</span>';
+      const productCell = r.pull_type === 'single'
+        ? `<button class="btn btn-sm btn-outline-secondary w-100 text-start" onclick="openPicker(${i})">
+             ${r.product_id ? escHtml(r.product_name || r.product_id) : '<span class="text-muted">Pick product…</span>'}
+           </button>`
+        : `<div class="d-flex gap-1">
+             <input class="form-control form-control-sm" placeholder="game" value="${escAttr(r.bulk_game)}" oninput="setField(${i},'bulk_game',this.value)" style="max-width:90px">
+             <input class="form-control form-control-sm" placeholder="set code" value="${escAttr(r.bulk_set_code)}" oninput="setField(${i},'bulk_set_code',this.value)" style="max-width:90px">
+             <input class="form-control form-control-sm" placeholder="label" value="${escAttr(r.bulk_label)}" oninput="setField(${i},'bulk_label',this.value)">
+           </div>`;
+      return `
+        <tr>
+          <td>${typeBadge}</td>
+          <td>${productCell}</td>
+          <td class="text-end"><input type="number" min="1" class="form-control form-control-sm text-end" value="${r.quantity}" oninput="setField(${i},'quantity',parseInt(this.value)||0)"></td>
+          <td class="text-end"><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end" value="${r.market_value_per_unit}" oninput="setField(${i},'market_value_per_unit',parseFloat(this.value)||0)"></td>
+          <td class="text-end" id="alloc-preview-${i}">—</td>
+          <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="removeEditorRow(${i})"><i class="bi bi-x-lg"></i></button></td>
+        </tr>`;
+    }).join('');
+    updateAllocationPreview();
+  }
+
+  function setField(i, field, value) {
+    editorRows[i][field] = value;
+    updateAllocationPreview();
+  }
+
+  function updateAllocationPreview() {
+    const sealed = Number(detail.sealed_market_value) || 0;
+    let totalMV = 0;
+    for (const r of editorRows) totalMV += Number(r.quantity) * Number(r.market_value_per_unit);
+    document.getElementById('editor-total-mv').textContent = money(totalMV);
+    let totalAlloc = 0;
+    editorRows.forEach((r, i) => {
+      const cell = document.getElementById('alloc-preview-' + i);
+      if (!cell) return;
+      if (totalMV <= 0) { cell.textContent = '—'; return; }
+      const allocPerUnit = (Number(r.market_value_per_unit) * sealed) / totalMV;
+      cell.textContent = money(allocPerUnit);
+      totalAlloc += allocPerUnit * Number(r.quantity);
+    });
+    document.getElementById('editor-total-alloc').textContent = money(totalAlloc);
+  }
+
+  async function savePulls() {
+    const errEl = document.getElementById('editor-error');
+    errEl.classList.add('d-none');
+    // Client-side validation mirroring the backend.
+    for (let i = 0; i < editorRows.length; i++) {
+      const r = editorRows[i];
+      if (r.pull_type !== 'single' && r.pull_type !== 'bulk') { return errorOut(`Row ${i+1}: invalid type`); }
+      if (!r.quantity || r.quantity <= 0)                     { return errorOut(`Row ${i+1}: quantity must be > 0`); }
+      if (r.market_value_per_unit < 0)                        { return errorOut(`Row ${i+1}: market value must be >= 0`); }
+      if (r.pull_type === 'single' && !r.product_id)          { return errorOut(`Row ${i+1}: product is required`); }
+      if (r.pull_type === 'bulk' && !r.bulk_game)             { return errorOut(`Row ${i+1}: bulk game is required`); }
+    }
+
+    const btn = document.getElementById('btn-save-pulls');
+    btn.disabled = true;
+    try {
+      await api('PUT', `/box-breaks/${breakId}/pulls`, {
+        pulls: editorRows.map(r => ({
+          pull_type:             r.pull_type,
+          product_id:            r.product_id,
+          bulk_game:             r.bulk_game,
+          bulk_set_code:         r.bulk_set_code,
+          bulk_label:            r.bulk_label,
+          quantity:              Number(r.quantity),
+          market_value_per_unit: Number(r.market_value_per_unit),
+          notes:                 r.notes,
+        })),
+      });
+      // Reload the break from the API — sync propagation to GCS may lag a moment.
+      detail = await api('GET', `/box-breaks/${breakId}`);
+      renderHeader();
+      renderPulls(detail.pulls || []);
+      cancelEditor();
+    } catch (e) {
+      errorOut(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function errorOut(msg) {
+    const errEl = document.getElementById('editor-error');
+    errEl.textContent = msg;
+    errEl.classList.remove('d-none');
+    return false;
+  }
+
+  // ── Product picker ───────────────────────────────────────────────────────
+
+  function openPicker(rowIdx) {
+    pickerTarget = rowIdx;
+    document.getElementById('picker-search').value = '';
+    renderPickerResults('');
+    productModal.show();
+    setTimeout(() => document.getElementById('picker-search').focus(), 150);
+  }
+
+  document.getElementById('picker-search').addEventListener('input', e => {
+    renderPickerResults(e.target.value);
+  });
+
+  function renderPickerResults(query) {
+    const q = query.trim().toLowerCase();
+    // Exclude sealed products from single-pull picker.
+    let pool = allProducts.filter(p => !String(p.product_id || '').startsWith('sealed:'));
+    if (q) {
+      pool = pool.filter(p =>
+        String(p.name || '').toLowerCase().includes(q) ||
+        String(p.product_id || '').toLowerCase().includes(q)
+      );
+    }
+    const top = pool.slice(0, 50);
+    const container = document.getElementById('picker-results');
+    if (!top.length) {
+      container.innerHTML = '<div class="text-muted small p-3">No matches.</div>';
+      return;
+    }
+    container.innerHTML = top.map(p => `
+      <button type="button" class="list-group-item list-group-item-action" onclick="selectPicked('${escAttr(p.product_id)}', '${escAttr(p.name || '')}')">
+        <div class="fw-medium small">${escHtml(p.name || p.product_id)}</div>
+        <div class="text-muted small"><code>${escHtml(p.product_id)}</code></div>
+      </button>
+    `).join('');
+  }
+
+  function selectPicked(productId, name) {
+    if (pickerTarget == null) return;
+    editorRows[pickerTarget].product_id = productId;
+    editorRows[pickerTarget].product_name = name;
+    productModal.hide();
+    renderEditor();
+  }
+
+  function escHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || ''))); return d.innerHTML; }
+  function escAttr(s) { return escHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+</script>
+{{ end }}

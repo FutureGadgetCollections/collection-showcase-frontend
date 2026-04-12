@@ -6,7 +6,10 @@
     </a>
     <span id="binder-name" class="fw-semibold fs-5"></span>
   </div>
-  <div class="d-flex gap-2" id="admin-controls" style="display:none!important">
+  <div class="d-flex gap-2 flex-wrap" id="admin-controls" style="display:none!important">
+    <button class="btn btn-sm btn-outline-success" id="btn-fill-set" onclick="openFillModal()">
+      <i class="bi bi-collection me-1"></i>Fill from Set
+    </button>
     <button class="btn btn-sm btn-outline-secondary" id="btn-add-page" onclick="addPage()">
       <i class="bi bi-plus-lg me-1"></i>Add Page
     </button>
@@ -75,6 +78,44 @@
         <div id="card-picker-list" style="max-height:380px;overflow-y:auto">
           <div class="text-center text-muted small py-3">Loading catalog...</div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fill from Set Modal -->
+<div class="modal fade" id="fillModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title"><i class="bi bi-collection me-2"></i>Fill Binder from Set</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Choose a game and set to auto-populate binder pages. Cards are sorted by card number and appended after any existing pages.</p>
+        <div class="mb-3">
+          <label class="form-label small fw-medium">Game</label>
+          <select class="form-select form-select-sm" id="fill-game" onchange="onFillGameChange()">
+            <option value="">Select game...</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium">Set</label>
+          <select class="form-select form-select-sm" id="fill-set" onchange="onFillSetChange()" disabled>
+            <option value="">Select set...</option>
+          </select>
+        </div>
+        <div class="mb-3 d-none" id="fill-rarity-section">
+          <label class="form-label small fw-medium">Filter by rarity <span class="text-muted fw-normal">(leave all unchecked for every card)</span></label>
+          <div id="fill-rarity-list" class="d-flex flex-wrap gap-2 mt-1"></div>
+        </div>
+        <div id="fill-preview" class="alert py-2 small d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success btn-sm" id="btn-fill-confirm" onclick="executeFill()" disabled>
+          <i class="bi bi-collection me-1"></i>Fill Binder
+        </button>
       </div>
     </div>
   </div>
@@ -553,6 +594,172 @@ function selectCard(card) {
   cardPickerModal.hide();
   pickingSlot = null;
   renderPage();
+}
+
+// ── Fill from Set ─────────────────────────────────────────────────────────────
+
+let fillModal = null;
+
+function openFillModal() {
+  if (!fillModal) fillModal = new bootstrap.Modal(document.getElementById('fillModal'));
+
+  const gameSelect = document.getElementById('fill-game');
+  gameSelect.innerHTML = '<option value="">Select game...</option>';
+  document.getElementById('fill-set').innerHTML = '<option value="">Select set...</option>';
+  document.getElementById('fill-set').disabled = true;
+  document.getElementById('fill-rarity-section').classList.add('d-none');
+  document.getElementById('fill-preview').classList.add('d-none');
+  document.getElementById('btn-fill-confirm').disabled = true;
+
+  if (catalog.length === 0) {
+    gameSelect.innerHTML = '<option value="">Catalog still loading — try again in a moment</option>';
+    fillModal.show();
+    return;
+  }
+
+  const games = [...new Set(catalog.map(c => c.game).filter(Boolean))].sort();
+  games.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g;
+    gameSelect.appendChild(opt);
+  });
+
+  fillModal.show();
+}
+
+function onFillGameChange() {
+  const game = document.getElementById('fill-game').value;
+  const setSelect = document.getElementById('fill-set');
+  setSelect.innerHTML = '<option value="">Select set...</option>';
+  document.getElementById('fill-rarity-section').classList.add('d-none');
+  document.getElementById('fill-preview').classList.add('d-none');
+  document.getElementById('btn-fill-confirm').disabled = true;
+
+  if (!game) { setSelect.disabled = true; return; }
+
+  const sets = [...new Set(catalog.filter(c => c.game === game).map(c => c.set_code).filter(Boolean))].sort();
+  sets.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    setSelect.appendChild(opt);
+  });
+  setSelect.disabled = false;
+}
+
+function onFillSetChange() {
+  const game = document.getElementById('fill-game').value;
+  const setCode = document.getElementById('fill-set').value;
+  document.getElementById('fill-rarity-section').classList.add('d-none');
+  document.getElementById('fill-preview').classList.add('d-none');
+  document.getElementById('btn-fill-confirm').disabled = true;
+
+  if (!setCode) return;
+
+  const cards = catalog.filter(c => c.game === game && c.set_code === setCode);
+  const rarities = [...new Set(cards.map(c => c.rarity).filter(Boolean))].sort();
+
+  const rarityList = document.getElementById('fill-rarity-list');
+  rarityList.innerHTML = rarities.map(r =>
+    `<div class="form-check">
+      <input class="form-check-input fill-rarity-check" type="checkbox" value="${escHtml(r)}" id="fr-${escHtml(r)}" onchange="updateFillPreview()">
+      <label class="form-check-label small" for="fr-${escHtml(r)}">${escHtml(r.replace(/_/g, ' '))}</label>
+    </div>`
+  ).join('');
+
+  document.getElementById('fill-rarity-section').classList.remove('d-none');
+  document.getElementById('btn-fill-confirm').disabled = false;
+  updateFillPreview();
+}
+
+function updateFillPreview() {
+  const game = document.getElementById('fill-game').value;
+  const setCode = document.getElementById('fill-set').value;
+  if (!game || !setCode) return;
+
+  let cards = catalog.filter(c => c.game === game && c.set_code === setCode);
+  const checked = [...document.querySelectorAll('.fill-rarity-check:checked')].map(el => el.value);
+  if (checked.length > 0) cards = cards.filter(c => checked.includes(c.rarity));
+
+  const slotsPerPage = binderData.slots_per_page || 9;
+  const cardsPerPage = slotsPerPage * 2;
+  const pagesNeeded = cards.length > 0 ? Math.ceil(cards.length / cardsPerPage) : 0;
+  const preview = document.getElementById('fill-preview');
+
+  if (cards.length === 0) {
+    preview.textContent = 'No cards match this selection.';
+    preview.className = 'alert alert-warning py-2 small';
+    document.getElementById('btn-fill-confirm').disabled = true;
+  } else {
+    const existing = (binderData.pages || []).length;
+    preview.textContent = `${cards.length} card${cards.length !== 1 ? 's' : ''} → ${pagesNeeded} new page${pagesNeeded !== 1 ? 's' : ''} (${slotsPerPage} slots/side, front then back)${existing > 0 ? `, appended after page ${existing}` : ''}`;
+    preview.className = 'alert alert-info py-2 small';
+    document.getElementById('btn-fill-confirm').disabled = false;
+  }
+  preview.classList.remove('d-none');
+}
+
+async function executeFill() {
+  const game = document.getElementById('fill-game').value;
+  const setCode = document.getElementById('fill-set').value;
+  const checked = [...document.querySelectorAll('.fill-rarity-check:checked')].map(el => el.value);
+
+  let cards = catalog.filter(c => c.game === game && c.set_code === setCode);
+  if (checked.length > 0) cards = cards.filter(c => checked.includes(c.rarity));
+  if (cards.length === 0) return;
+
+  // Sort by card number naturally (e.g. 001 < 002 < 010 < 025)
+  cards.sort((a, b) =>
+    String(a.card_number || '').localeCompare(String(b.card_number || ''), undefined, { numeric: true })
+  );
+
+  const slotsPerPage = binderData.slots_per_page || 9;
+  const cardsPerPage = slotsPerPage * 2;
+  const pagesNeeded = Math.ceil(cards.length / cardsPerPage);
+  const existingPageCount = (binderData.pages || []).length;
+
+  const btn = document.getElementById('btn-fill-confirm');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Filling...';
+
+  try {
+    // Add pages one at a time (API adds one per call)
+    for (let i = 0; i < pagesNeeded; i++) {
+      await api('POST', `/binders/${binderId}/pages`, {});
+    }
+
+    // Reload to get updated page numbers
+    await loadBinderFromApi();
+
+    const newPages = (binderData.pages || []).slice(existingPageCount);
+
+    for (let pi = 0; pi < newPages.length; pi++) {
+      const pageCards = cards.slice(pi * cardsPerPage, (pi + 1) * cardsPerPage);
+      const slots = [];
+
+      pageCards.slice(0, slotsPerPage).forEach((card, i) => {
+        slots.push({ side: 'front', slot_position: i + 1, card_game: card.game, card_set_code: card.set_code, card_number: card.card_number, card_notes: '' });
+      });
+      pageCards.slice(slotsPerPage).forEach((card, i) => {
+        slots.push({ side: 'back', slot_position: i + 1, card_game: card.game, card_set_code: card.set_code, card_number: card.card_number, card_notes: '' });
+      });
+
+      await api('PUT', `/binders/${binderId}/pages/${newPages[pi].page_number}/slots`, { slots });
+    }
+
+    await loadBinderFromApi();
+    currentPage = existingPageCount; // jump to first new page
+    renderPage();
+
+    fillModal.hide();
+    showToast(`Added ${cards.length} cards across ${pagesNeeded} page${pagesNeeded !== 1 ? 's' : ''}!`, 'success');
+  } catch (e) {
+    showToast('Fill failed: ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-collection me-1"></i>Fill Binder';
+  }
 }
 </script>
 {{ end }}

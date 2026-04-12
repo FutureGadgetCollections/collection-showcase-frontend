@@ -32,7 +32,19 @@
         <li class="nav-item">
           <a class="nav-link{{ if hasPrefix .RelPermalink "/displays" }} active{{ end }}"
              href="{{ "displays/" | relURL }}">
-            <i class="bi bi-shop-window me-1"></i>Displays
+            <i class="bi bi-bookshelf me-1"></i>Shelves
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{{ if hasPrefix .RelPermalink "/box-breaks" }} active{{ end }}"
+             href="{{ "box-breaks/" | relURL }}">
+            <i class="bi bi-box-seam me-1"></i>Box Breaks
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{{ if hasPrefix .RelPermalink "/pull-rate-calculator" }} active{{ end }}"
+             href="{{ "pull-rate-calculator/" | relURL }}">
+            <i class="bi bi-calculator me-1"></i>Pull Rates
           </a>
         </li>
       </ul>
