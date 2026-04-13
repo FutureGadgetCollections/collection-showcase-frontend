@@ -26,10 +26,24 @@
       </div>
       <div class="modal-body">
         <div class="mb-3">
-          <label class="form-label small fw-medium" for="break-sealed">Sealed product <span class="text-danger">*</span></label>
-          <select class="form-select" id="break-sealed">
-            <option value="">Loading sealed products…</option>
-          </select>
+          <label class="form-label small fw-medium">Sealed product <span class="text-danger">*</span></label>
+          <div class="row g-2">
+            <div class="col-12">
+              <select class="form-select form-select-sm" id="break-game" onchange="onGameChange()">
+                <option value="">1. Choose game…</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <select class="form-select form-select-sm" id="break-set" onchange="onSetChange()" disabled>
+                <option value="">2. Choose set…</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <select class="form-select form-select-sm" id="break-sealed" disabled>
+                <option value="">3. Choose product…</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="row g-2 mb-3">
           <div class="col-6">
@@ -172,17 +186,68 @@
   }
 
   function openCreateModal() {
-    const sel = document.getElementById('break-sealed');
+    const gameSel = document.getElementById('break-game');
+    const setSel  = document.getElementById('break-set');
+    const prodSel = document.getElementById('break-sealed');
+
+    setSel.innerHTML  = '<option value="">2. Choose set…</option>';
+    prodSel.innerHTML = '<option value="">3. Choose product…</option>';
+    setSel.disabled  = true;
+    prodSel.disabled = true;
+
     if (sealedProducts.length === 0) {
-      sel.innerHTML = '<option value="">No sealed products loaded</option>';
+      gameSel.innerHTML = '<option value="">No sealed products loaded</option>';
     } else {
-      sel.innerHTML = '<option value="">Select a sealed product…</option>' +
-        sealedProducts.map(p => `<option value="${escHtml(p.product_id)}">${escHtml(p.name || p.product_id)}</option>`).join('');
+      const games = [...new Set(sealedProducts.map(p => p.game).filter(Boolean))].sort();
+      gameSel.innerHTML = '<option value="">1. Choose game…</option>' +
+        games.map(g => `<option value="${escHtml(g)}">${escHtml(g)}</option>`).join('');
     }
+
     document.getElementById('break-date').value = new Date().toISOString().slice(0, 10);
     document.getElementById('break-value').value = '';
     document.getElementById('break-notes').value = '';
     document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  function onGameChange() {
+    const game    = document.getElementById('break-game').value;
+    const setSel  = document.getElementById('break-set');
+    const prodSel = document.getElementById('break-sealed');
+
+    prodSel.innerHTML = '<option value="">3. Choose product…</option>';
+    prodSel.disabled  = true;
+
+    if (!game) {
+      setSel.innerHTML = '<option value="">2. Choose set…</option>';
+      setSel.disabled = true;
+      return;
+    }
+
+    const sets = [...new Set(
+      sealedProducts.filter(p => p.game === game).map(p => p.set_code).filter(Boolean)
+    )].sort();
+    setSel.innerHTML = '<option value="">2. Choose set…</option>' +
+      sets.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+    setSel.disabled = sets.length === 0;
+  }
+
+  function onSetChange() {
+    const game    = document.getElementById('break-game').value;
+    const setCode = document.getElementById('break-set').value;
+    const prodSel = document.getElementById('break-sealed');
+
+    if (!game || !setCode) {
+      prodSel.innerHTML = '<option value="">3. Choose product…</option>';
+      prodSel.disabled  = true;
+      return;
+    }
+
+    const prods = sealedProducts
+      .filter(p => p.game === game && p.set_code === setCode)
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    prodSel.innerHTML = '<option value="">3. Choose product…</option>' +
+      prods.map(p => `<option value="${escHtml(p.product_id)}">${escHtml(p.name || p.product_id)}</option>`).join('');
+    prodSel.disabled = prods.length === 0;
   }
 
   async function saveBreak() {
