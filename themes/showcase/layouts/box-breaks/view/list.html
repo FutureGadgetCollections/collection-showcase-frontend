@@ -47,9 +47,13 @@
 
   <!-- Pulls editor (admin) -->
   <div id="pulls-editor" class="d-none border rounded p-3 mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <h6 class="fw-semibold mb-0">Edit pulls</h6>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div id="quickfill-group" class="d-none d-flex gap-1 align-items-center me-1">
+          <input type="number" id="quickfill-count" class="form-control form-control-sm text-end" min="1" max="100" value="24" style="width:70px">
+          <button class="btn btn-sm btn-outline-primary" onclick="quickFillThemes()" title="Add N empty theme rows"><i class="bi bi-grid-3x3-gap me-1"></i>Quick-fill</button>
+        </div>
         <button class="btn btn-sm btn-outline-secondary" onclick="addEditorRow('single')"><i class="bi bi-plus-lg me-1"></i>Single</button>
         <button class="btn btn-sm btn-outline-secondary" onclick="addEditorRow('bulk')"><i class="bi bi-plus-lg me-1"></i>Bulk</button>
       </div>
@@ -98,7 +102,13 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <input type="text" class="form-control mb-2" id="picker-search" placeholder="Search by name or product id…">
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <input type="text" class="form-control" id="picker-search" placeholder="Search by name or product id…">
+          <div id="picker-scope" class="form-check form-switch small text-nowrap d-none">
+            <input class="form-check-input" type="checkbox" id="picker-all-toggle">
+            <label class="form-check-label text-muted" for="picker-all-toggle">All products</label>
+          </div>
+        </div>
         <div id="picker-results" class="list-group" style="max-height:420px;overflow-y:auto"></div>
       </div>
     </div>
@@ -115,6 +125,7 @@
   let allProducts  = [];         // products.json cache
   let editorRows   = [];         // working copy of pulls for the editor
   let pickerTarget = null;       // which editor row the picker writes back to
+  let pickerShowAll = false;     // toggle: show all products vs just themes (jumpstart breaks only)
 
   const productModal = new bootstrap.Modal(document.getElementById('productModal'));
 
@@ -218,6 +229,13 @@
 
   // ── Editor ───────────────────────────────────────────────────────────────
 
+  // Returns {game, setCode} if the break's sealed product is a Jumpstart booster box; else null.
+  function jumpstartContext() {
+    const pid = detail && detail.sealed_product_id || '';
+    const m = pid.match(/^sealed:([^:]+):([^:]+):jumpstart-booster-box$/);
+    return m ? { game: m[1], setCode: m[2] } : null;
+  }
+
   document.getElementById('btn-edit-pulls').addEventListener('click', () => {
     editorRows = (detail.pulls || []).map(p => ({
       pull_type:             p.pull_type,
@@ -230,10 +248,25 @@
       market_value_per_unit: p.market_value_per_unit || 0,
       notes:                 p.notes || '',
     }));
+    document.getElementById('quickfill-group').classList.toggle('d-none', !jumpstartContext());
     renderEditor();
     document.getElementById('pulls-view').classList.add('d-none');
     document.getElementById('pulls-editor').classList.remove('d-none');
   });
+
+  function quickFillThemes() {
+    const n = parseInt(document.getElementById('quickfill-count').value, 10) || 0;
+    if (n <= 0) return;
+    for (let i = 0; i < n; i++) {
+      editorRows.push({
+        pull_type: 'single',
+        product_id: '', product_name: '',
+        bulk_game: '', bulk_set_code: '', bulk_label: '',
+        quantity: 1, market_value_per_unit: 0, notes: '',
+      });
+    }
+    renderEditor();
+  }
 
   function cancelEditor() {
     document.getElementById('pulls-editor').classList.add('d-none');
@@ -357,7 +390,10 @@
 
   function openPicker(rowIdx) {
     pickerTarget = rowIdx;
+    pickerShowAll = false;
     document.getElementById('picker-search').value = '';
+    document.getElementById('picker-all-toggle').checked = false;
+    document.getElementById('picker-scope').classList.toggle('d-none', !jumpstartContext());
     renderPickerResults('');
     productModal.show();
     setTimeout(() => document.getElementById('picker-search').focus(), 150);
@@ -367,10 +403,23 @@
     renderPickerResults(e.target.value);
   });
 
+  document.getElementById('picker-all-toggle').addEventListener('change', e => {
+    pickerShowAll = e.target.checked;
+    renderPickerResults(document.getElementById('picker-search').value);
+  });
+
   function renderPickerResults(query) {
     const q = query.trim().toLowerCase();
-    // Exclude sealed products from single-pull picker.
-    let pool = allProducts.filter(p => !String(p.product_id || '').startsWith('sealed:'));
+    const jp = jumpstartContext();
+    let pool;
+    if (jp && !pickerShowAll) {
+      // Jumpstart break: show only this set's themes.
+      const prefix = `sealed:${jp.game}:${jp.setCode}:jumpstart-theme-`;
+      pool = allProducts.filter(p => String(p.product_id || '').startsWith(prefix));
+    } else {
+      // Default: exclude sealed products (themes get excluded here too when toggle=off on non-jumpstart breaks).
+      pool = allProducts.filter(p => !String(p.product_id || '').startsWith('sealed:'));
+    }
     if (q) {
       pool = pool.filter(p =>
         String(p.name || '').toLowerCase().includes(q) ||

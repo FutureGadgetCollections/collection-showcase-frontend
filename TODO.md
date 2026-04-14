@@ -27,6 +27,57 @@ Backend code merged and compiles (2026-04-12). BQ tables + view live (setup ran)
 
 ## Backlog
 
+### Box Break — MTG Jumpstart themed half-deck pulls
+- [x] **Avatar (tla) Jumpstart themes live** (2026-04-13) — 66 themes (13 × W/U/B/R/G + 1 Multicolor) now exist as `sealed_products` rows with product_type `jumpstart-theme-<slug>-<color>`, surfacing through `inventory.catalog_products` as `sealed:mtg:tla:jumpstart-theme-*`. Source of truth for names + decklists is `collection-market-tracker-frontend-admin/data/jumpstart-decks.json`; no new catalog table needed. Seed script: `collection-market-tracker-backend/scripts/catalog/bulk_insert_mtg_jumpstart_themes.py`. Triggered `collection-showcase-data-sync` Cloud Run job — products.json on GCS + GitHub contains all 66 themes.
+- [x] **Frontend Jumpstart-aware picker + quick-fill** (2026-04-13) — `themes/showcase/layouts/box-breaks/view/list.html`: when the break's sealed product matches `sealed:*:*:jumpstart-booster-box`, the product picker auto-filters to that set's `jumpstart-theme-*` entries (with an "All products" toggle in the picker modal to break out), and a "Quick-fill [N]" button (default 24) appears on the editor toolbar to pre-add N empty `single` rows.
+- [ ] **Smoke test end-to-end** — not yet exercised in-browser. Plan: create a new box break for Avatar Jumpstart Booster Box, click Edit pulls, click Quick-fill (24), use picker to assign Jumpstart themes to each row, enter MV estimates, Save. Verify allocated cost basis sums to sealed MV.
+- [ ] **Fix `jumpstart-booster-box` display name** — products.json currently shows "Universes Beyond jumpstart booster box" (derived from era+product_type because name is NULL). Populate `name` on the existing tla jumpstart-booster-box row in `catalog.sealed_products` — e.g. "Avatar Jumpstart Booster Box".
+- [ ] **Theme images** — themes currently have no image_url (TCGPlayer has no individual listing for Jumpstart themes). Could derive from color (5 color-coded placeholders) or skip.
+- [ ] **Theme EV from decklists** — `jumpstart-decks.json` has 15-card lists per theme; the admin-side EV pipeline already uses it. Not yet surfaced as `market_value_per_unit` in the box break flow — admin enters MV manually today. Could auto-suggest MV by summing TCGPlayer prices × qty from the decklist; defer.
+- [ ] **Other Jumpstart sets** — `SET_METADATA` in the seed script only has `tla`. Add entries for any future MTG Jumpstart sets before re-running.
+
+### Architecture — Major: Migrate source of truth from BigQuery to homelab Postgres
+**Status:** planning only, not started. Flip the pipeline so Postgres (homelab) is the OLTP source of truth and BigQuery becomes an incremental backup / analytics warehouse. Multi-week effort spanning all three backend repos.
+
+Phased plan (do in order — no backend changes until PG is fully populated):
+
+**Phase 0 — decisions to lock in first**
+- [ ] Pick tunnel: Tailscale (simplest for homelab), Cloud VPN, or IAP TCP forwarding. Default recommendation: Tailscale.
+- [ ] Pick Postgres version (default: PG 16) and enable `wal_level=logical` from day one so Datastream CDC is an option later.
+- [ ] Homelab backup strategy for PG itself — nightly `pg_dump` → GCS (separate from the BQ-as-backup story).
+- [ ] Audit every BQ table we plan to sync: must have a stable primary key + monotonic `updated_at`. Tables to audit: `catalog.sealed_products`, `catalog.single_cards`, `catalog.set_pull_rates`, `market_data.tcgplayer_price_history`, `inventory.transactions`, `inventory.binders`, `inventory.binder_slots`, `inventory.showcase_displays`, `inventory.showcase_display_items`, `inventory.box_breaks`, `inventory.box_break_pulls`. Add missing columns in BQ first — retrofitting mid-migration is painful.
+
+**Phase 1 — stand up Postgres on homelab**
+- [ ] Install PG 16, enable logical replication, set up Tailscale on homelab + Cloud Run sidecar.
+- [ ] Create roles: `app_rw` (backends), `sync_ro` (BQ export job), `migrator`.
+- [ ] Introduce a migration tool (`goose` or `atlas`) in `collection-market-tracker-backend` under `sql/`. No hand-run DDL.
+- [ ] Smoke test: a Cloud Run job can connect over Tailscale and `SELECT 1`.
+
+**Phase 2 — mirror BQ → PG (initial backfill + ongoing sync)**
+- [ ] One-shot backfill: BQ `EXPORT DATA` → GCS Parquet → `COPY` into PG.
+- [ ] Ongoing mirror: new Cloud Run job (hourly) does watermark-based `SELECT * FROM bq WHERE updated_at > :watermark` → upsert into PG. Watermark state stored in a PG table.
+- [ ] Run for ≥1 week before touching backends. Monitor for type drift (BQ `NUMERIC` vs PG `numeric`, timestamps, JSON columns).
+
+**Phase 3 — switch backends to read from PG (least-risky first)**
+- [ ] Showcase data-sync job first — swap BQ client → `pgx`. Only writes JSON; if it breaks, site goes stale, no data loss.
+- [ ] Market-tracker backend API **read** paths → PG. Writes still go to BQ.
+- [ ] Market-tracker backend API **write** paths → PG. **Cutover moment.** Stop the Phase 2 mirror.
+- [ ] Price scraper job (`tcgplayer-price-scraper`) last — highest-volume writer. Add retry/backoff + local queue before flipping.
+
+**Phase 4 — reverse sync: PG → BQ as backup**
+- [ ] Start with Option A: Cloud Run job every N minutes, `updated_at` watermark, upsert into BQ via MERGE.
+- [ ] Upgrade to Option B (Datastream for PostgreSQL → BQ CDC) only if deletes need to be captured.
+
+**Phase 5 — cleanup**
+- [ ] Remove BQ write paths from backend + scraper.
+- [ ] Keep BQ read access for ad-hoc analytics.
+- [ ] Document new tunnel + failure modes in `CLAUDE.md`.
+
+**Risks to name up front**
+- Tunnel outage = everything stops. Scraper retry/backoff is non-negotiable.
+- Homelab power/network blips are now in the critical write path.
+- Type fidelity between BQ and PG will bite once — budget a day for it.
+
 ### Market Tracker — Data Sync
 - [x] **Fixed stale `set-pull-rates.json` on GCS/GitHub** (2026-03-29) — root cause: bulk Python insert went directly to BQ, bypassing the API auto-sync. Fix: wrote `scripts/catalog/sync_catalog.py` (BQ -> GCS -> GitHub for any catalog table); added sync call to end of `bulk_insert_pokemon_pull_rates.py`; ran manual sync → 274 rows now live on GCS + GitHub (`collection-market-tracker-data@d359742`).
 
