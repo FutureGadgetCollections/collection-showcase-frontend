@@ -6,7 +6,7 @@ Public-facing read-only showcase site for the **Collection Market Tracker** — 
 
 ## Multi-Repo Setup
 
-All repos are siblings under the same parent directory. Run `setup.sh` from `collection-market-tracker-frontend-admin` to clone any missing sibling repos.
+All repos are siblings under the same parent directory. Run `setup.sh` from `collection-admin` to clone any missing sibling repos.
 
 ## All Repositories
 
@@ -22,7 +22,7 @@ All repos are siblings under the same parent directory. Run `setup.sh` from `col
 
 | Repo | GitHub | Local Path | Purpose |
 |------|--------|-----------|---------|
-| Market tracker frontend admin | `FutureGadgetCollections/collection-market-tracker-frontend-admin` | `../collection-market-tracker-frontend-admin` | Hugo admin UI — manages catalog products; CRUD via market-tracker backend API |
+| Market tracker frontend admin | `FutureGadgetCollections/collection-admin` | `../collection-admin` | Hugo admin UI — manages catalog products; CRUD via market-tracker backend API |
 | Market tracker backend | `FutureGadgetCollections/collection-market-tracker-backend` | `../collection-market-tracker-backend` | Go API + TCGPlayer price scraper (Cloud Run jobs) — writes `catalog.*`, `market_data.tcgplayer_price_history`, `inventory.transactions` |
 | Market tracker data | `FutureGadgetCollections/collection-market-tracker-data` | `../collection-market-tracker-data` | Static JSON published by market-tracker backend |
 
