@@ -26,6 +26,12 @@ All repos are siblings under the same parent directory. Run `setup.sh` from `col
 | Market tracker backend | `FutureGadgetCollections/collection-market-tracker-backend` | `../collection-market-tracker-backend` | Go API + TCGPlayer price scraper (Cloud Run jobs) — writes `catalog.*`, `market_data.tcgplayer_price_history`, `inventory.transactions` |
 | Market tracker data | `FutureGadgetCollections/collection-market-tracker-data` | `../collection-market-tracker-data` | Static JSON published by market-tracker backend |
 
+### Standalone utilities
+
+| Repo | GitHub | Local Path | Purpose |
+|------|--------|-----------|---------|
+| Slab scanner | `FutureGadgetCollections/slab-scanner` | `../slab-scanner` | Plain HTML/JS client-side tool — TensorFlow.js + COCO-SSD card-outline detection for batch-cropping graded-card front/back photos to JPEG. No backend |
+
 ## GCP Infrastructure
 
 | Resource | Details |
